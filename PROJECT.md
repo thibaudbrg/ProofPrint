@@ -157,6 +157,22 @@ needs `brew install tesseract` separately either way.
 - Own endpoints (`GET /lab/light/latest|{id}`, `DELETE /lab/light`), in-memory, last 40 runs.
 
 **Recent changes**
+- **Selfie shutter goes straight on:** no still preview, no "✓ Photo taken" toast, no Retake/Continue —
+  tap → haptic tick → the live phases (light → move → profile) start via `runLivePhases()`. The
+  blur hint is gone with it (the server still gets the sharp 900 px crop). Retake/Continue handlers
+  are kept in the code but never shown.
+- **Profile-turn phase now waits for the user (UX):** after "I'm ready" the camera films but the
+  clock does NOT run. A cheap motion probe (mean |Δ| of consecutive 64×48 frames, centre patch, after
+  an 800 ms settle) detects the head starting to move (≥ 6.0 on two ticks) → haptic tick → the 4.5 s
+  recording window (`B_MS`, was 2.8 s) starts; at the latest after 12 s (`B_ARM_MAX_MS`). Frames from
+  the waiting period are dropped except a 600 ms frontal pre-roll; event `profile_turn_detected` is
+  logged. Hints: "when you're ready, slowly turn LEFT ⟵" → "Keep turning… all the way to your profile
+  · n" → "Hold it there…". No client-side card detection (v3 dropped it server-side too) — "detects
+  the ID" is not possible without a detector; the user's hand-up time is what the wait gives them.
+- **Flashlight button on the document capture** (top-right of the ID viewport): shown only when the
+  rear camera reports `torch` in `getCapabilities()` (Android Chrome; iOS Safari 17+ back camera),
+  toggles `applyConstraints({advanced:[{torch}]})`, hidden on the preview and off whenever the stream
+  stops. Front camera never has it, so the selfie screen shows nothing.
 - **Phone-move phase reworked (UX):** fixed **6 s** (`A_MS`) — the progress bar is the clock and never
   completes early (before: ended as soon as 35° were banked after 5 s). The silhouette overlay is hidden
   during this phase (only the turning-phone glyph). **Haptic coach:** the yaw rate (β) is integrated into
