@@ -23,6 +23,7 @@ import os
 import face_match
 import integrity_check
 import motion_check
+import profile_check
 
 app = FastAPI(title="Proofprint")
 
@@ -46,8 +47,12 @@ def start_session():
     """
     sid = secrets.token_hex(4)
     challenge = [secrets.choice(COLORS) for _ in range(5)]
-    SESSIONS[sid] = {"challenge": challenge, "result": None}
-    return {"session_id": sid, "challenge": challenge, "segment_ms": 500}
+    # Check 6: the side of the profile turn is a per-session nonce, minted here
+    # and judged against the SERVER's copy, never the client's.
+    profile_side = secrets.choice(["left", "right"])
+    SESSIONS[sid] = {"challenge": challenge, "profile_side": profile_side, "result": None}
+    return {"session_id": sid, "challenge": challenge, "segment_ms": 500,
+            "profile_side": profile_side}
 
 
 @app.post("/session/{sid}/capture")
@@ -55,7 +60,8 @@ async def capture(sid: str,
                   id_photo: UploadFile = File(...),
                   selfie: UploadFile = File(...),
                   meta: str = Form(None),
-                  frames: list[UploadFile] = File(default=[])):
+                  frames: list[UploadFile] = File(default=[]),
+                  profile_frames: list[UploadFile] = File(default=[])):
     """Receive the ID photo + selfie (+ liveness burst frames + metadata), score, decide."""
     if sid not in SESSIONS:
         raise HTTPException(404, "unknown session")
@@ -85,24 +91,41 @@ async def capture(sid: str,
             burst.append((float(t), img))
     motion = motion_check.check(meta_obj.get("motion"), burst)
 
+    # Check 6 — ID next to face + profile turn (the killer feature). Only when
+    # the client enabled it; the expected side comes from the session, not meta.
+    prof_meta = meta_obj.get("profile") or {}
+    prof_enabled = bool(prof_meta.get("enabled"))
+    pt_by_name = {f.get("file"): f.get("t") for f in (prof_meta.get("frames") or [])}
+    pburst = []
+    for uf in profile_frames:
+        t = pt_by_name.get(uf.filename)
+        img = face_match.imdecode(await uf.read())
+        if t is not None and img is not None:
+            pburst.append((float(t), img))
+    profile = profile_check.check(pburst, SESSIONS[sid].get("profile_side"), prof_enabled)
+
     # Fusion. The naive app (Act 2) reads `face` only. The mitigated app also
-    # weighs integrity + motion: a known virtual camera or a video that does not
-    # move with the phone -> block; a suspicious-but-not-damning capture -> step
-    # up, never a silent pass. (check 5 light plugs in here next.)
+    # weighs integrity + motion + profile: a known virtual camera, a video that
+    # does not move with the phone, or a turn to the wrong side -> block; a
+    # suspicious-but-not-damning capture -> step up, never a silent pass.
+    # (check 5 light plugs in here next.)
+    prof_v = profile["verdict"]
     if NAIVE:
         decision = {"match": "pass", "review": "step_up"}.get(face.get("verdict"), "block")
-    elif integ["hard"] or motion["verdict"] == "fail":
+    elif integ["hard"] or motion["verdict"] == "fail" or prof_v == "fail":
         decision = "block"
     elif face.get("verdict") == "mismatch":
         decision = "block"
     elif (face.get("verdict") == "review" or not integ["ok"]
-          or motion["verdict"] in ("review", "insufficient", "absent")):
+          or motion["verdict"] in ("review", "insufficient", "absent")
+          or (prof_enabled and prof_v in ("review", "insufficient", "absent"))):
         decision = "step_up"
     else:
         decision = "pass"
 
     result = {"decision": decision, "mode": "naive" if NAIVE else "full",
-              "signals": {"face": face, "integrity": integ, "motion": motion}}
+              "signals": {"face": face, "integrity": integ, "motion": motion,
+                          "profile": profile}}
     SESSIONS[sid]["result"] = result
     return result
 

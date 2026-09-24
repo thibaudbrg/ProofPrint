@@ -9,9 +9,9 @@
 
 ## 0. STATUS / LOG (update this after every change)
 
-**Last updated:** 2026-09-24 · by: Vasiliy's Claude session (branch `feat/motion-check`, PR open)
+**Last updated:** 2026-09-24 · by: Vasiliy's Claude session (branch `feat/profile-challenge`, PR open; `feat/motion-check` merged as #1)
 
-**⚠ Ownership note:** the `feat/motion-check` branch touches BOTH `server/` (check 4 +
+**⚠ Ownership note:** `feat/motion-check` (merged) and `feat/profile-challenge` touch BOTH `server/` (check 4 +
 fusion + naive mode) AND `web/` (3 s liveness burst on the selfie shutter) AND
 `contract/` (frames + motion keys, `motion` signal shape). One feature, one PR —
 review it together before merging.
@@ -32,6 +32,12 @@ review it together before merging.
   ±300 ms, energy-weighted |Pearson| over yaw/pitch. 12 synthetic tests green. **NOT yet
   tested on a real phone** — see "Open TODO" #1. No MediaPipe needed (OpenCV only).
 - [x] **Naive mode** for Act 2: `PROOFPRINT_MODE=naive ./dev.sh` → decides on `face` only.
+- [x] **Check 6 — ID next to face + profile turn** ★ THE KILLER FEATURE (branch
+  `feat/profile-challenge`). Toggle on the intro screen ("Killer feature", default ON) adds
+  Step 3: server-minted side, 3.5 s burst; `server/profile_check.py` = YuNet-landmark yaw,
+  side compliance (wrong side → block), card-next-to-face rectangle, face↔card colour temp,
+  snap-back flag. 15 tests green. **NOT yet phone-tested** — `SIDE_SIGN`/`TURN_MIN` need one
+  real run (see Open TODO #2). Occlusion-edge deepfake score = TODO (no classifier in repo).
 - [ ] **Check 5 — Light pulse** (flash random colours, skin must reflect them).
 - [ ] **Check 2 — ID card MRZ** (optional; face extraction already works via check 1).
 - [ ] **Attack rig** (OBS + deepfake) → milestone M1 ("naïve app fooled").
@@ -39,16 +45,29 @@ review it together before merging.
 - [ ] **APCER/BPCER** evaluation run.
 
 **Open TODO / next actions**
+0. **Live now:** `https://limousines-delaware-motors-keywords.trycloudflare.com` (Vasiliy's
+   Mac, uvicorn --reload on :8000 + cloudflared; dies with that process — restart and update).
 1. **Phone-test check 4** (iPhone + Android): run a genuine burst, read the server log line
    `[motion_check] score=… lag=…`. Expect score > 0.6 and lag 0–150 ms. If real phones
    score low, first suspects: axis mapping (`ry`=gamma↔horizontal flow), frame timestamps,
    phone held too still (`gyro_rms_dps` < 8 → "insufficient"). Tune `SCORE_PASS`/`SCORE_REVIEW`
    in `motion_check.py`.
-2. Calibrate face threshold on real ID-vs-selfie pairs (see `COSINE_MATCH`/`COSINE_LOW`).
-3. Set up the attack rig to lock M1 (naive mode now exists for it).
-4. Analyst dashboard: plot `signals.motion.series` (flow_x vs gyro_yaw, flow_y vs gyro_pitch).
+2. **Phone-test check 6**: one run turning LEFT when asked LEFT. Read `[profile_check] …
+   peak_ok=… peak_wrong=…`. If `peak_wrong` is the big one, flip `SIDE_SIGN` in
+   `profile_check.py`. If both are small (<0.12) the yaw proxy needs a lower `TURN_MIN` or
+   YuNet lost the face early → check `faces=` count. `card_frac` low → tune `_find_card`
+   (Canny thresholds, `CARD_MIN_AREA`) against venue light.
+3. Calibrate face threshold on real ID-vs-selfie pairs (see `COSINE_MATCH`/`COSINE_LOW`).
+4. Set up the attack rig to lock M1 (naive mode now exists for it).
+5. Analyst dashboard: plot `signals.motion.series` + `signals.profile.yaw_series`.
+6. Check 5 (light pulse) still open; the `challenge` colours are minted but unused.
 
 **Recent changes**
+- **Check 6 implemented** (`feat/profile-challenge`): "Killer feature" toggle on intro; the
+  session is now minted at **Begin** (was: at submit) so the phone knows `profile_side`;
+  Step 3 screen with mirrored arrow; `profile_frames` upload; `signals.profile` in the result;
+  fusion: profile `fail` → block, `review|insufficient|absent` (when enabled) → step_up.
+  Step counters now say "of 3" when the toggle is on.
 - **Check 4 implemented** (`feat/motion-check`): selfie shutter now records a 3 s burst
   ("slowly tilt the phone") of ~36 low-res frames + gyro samples, uploads them as repeated
   `frames` parts + `meta.frames/motion`; server correlates global image shift with
@@ -101,6 +120,7 @@ was physically live.
 | 3 · Capture integrity (virtual-cam, sensors) | mitigated | Partly (off-the-shelf tools) | ✅ |
 | 4 · **Gyroscope ↔ video** ★ | mitigated | **Yes** (the core) | ✅ code + synthetic tests · ⏳ phone calibration |
 | 5 · Light pulse (colour reflection) | mitigated | Mostly | ⏳ |
+| 6 · **ID next to face + profile turn** ★ | mitigated (toggle) | **Yes** — face-swaps warp at 90°, ghost on occlusion | ✅ code + tests · ⏳ phone calibration |
 
 **Deliberately NOT used:** iris (needs IR hardware), typing rhythm (no profile at
 first onboarding), mouse (no mouse on phone — its useful bit folds into check 3),
@@ -141,8 +161,9 @@ Full detail in `contract/contract.md`. Summary:
 3. `GET /session/{id}/result` → `{ decision, signals:{ face, integrity, ... } }`
    `decision ∈ pass | step_up | block | pending`.
 
-**Fusion rule (current):** virtual-cam label OR motion `fail` → block · face mismatch → block ·
-(face review OR any integrity flag OR motion `review|insufficient|absent`) → step_up · else pass.
+**Fusion rule (current):** virtual-cam label OR motion `fail` OR profile `fail` (wrong side) → block ·
+face mismatch → block · (face review OR any integrity flag OR motion `review|insufficient|absent`
+OR [toggle on AND profile `review|insufficient|absent`]) → step_up · else pass.
 In `PROOFPRINT_MODE=naive`: face match → pass, review → step_up, else block (liveness ignored).
 
 ---
@@ -161,6 +182,7 @@ server/               ← Person A
   face_match.py       ← check 1 (YuNet + SFace, rotation-robust)
   integrity_check.py  ← check 3
   motion_check.py     ← check 4 (gyro ↔ video, phase correlation + lag search)
+  profile_check.py    ← check 6 (ID + profile turn: yaw from YuNet landmarks, card, lighting)
   tests/              ← pytest: synthetic pan renderer + e2e via TestClient
   requirements.txt    ← pinned (OpenCV + numpy suffice for check 4; pytest + httpx for tests)
   models/             ← YuNet/SFace .onnx (gitignored, auto-download)
@@ -206,6 +228,15 @@ if missing. Camera needs HTTPS — that's why the tunnel exists.
   (from synthetic tests — calibrate on phones). Still video + moving phone → fail; moving
   video + still phone → fail; nothing moved → insufficient (step_up, "please tilt").
   Head-pose (MediaPipe) was NOT needed; revisit only if background-less scenes break flow.
+- **Check 6 (built):** yaw proxy = (nose_x − eye_mid_x) / face_w from YuNet's 5 landmarks
+  (frontal ≈ 0, ~45° ≈ 0.15; YuNet usually loses the face near 90°, which counts as "reached
+  profile" if the last frames trended the right way). `SIDE_SIGN={"left":+1,"right":-1}` for
+  RAW (unmirrored) front-camera frames — flip if a phone test disagrees. `TURN_MIN=0.12`,
+  `TURN_FULL=0.22`, score = 0.6·turn + 0.25·card_seen + 0.15·lighting − 0.2·snap;
+  `SCORE_PASS=0.55`, `SCORE_REVIEW=0.30`. Wrong side is a hard fail regardless of score.
+  Why this is the killer: DeepFaceLive-class tools map only 50–60 % of landmarks in profile
+  and warp at 90°; a card crossing the face ghosts at the mask edge; the side is a nonce so a
+  pre-recorded clip can't follow it; human video-ident agents already ask for exactly this.
 - **Check 5 (planned):** server mints random colour seq; skin ROI ÷ background;
   daylight → low SNR → step-up (not fail). Overlaps iProov patent → pitch as fusion.
 
@@ -226,7 +257,7 @@ if missing. Camera needs HTTPS — that's why the tunnel exists.
 ## 9. Milestones
 
 - **M1** — attack beats the naïve app (needs check 1 + attack rig; naive mode ✅). *← current target*
-- **M2** — Proofprint blocks the same attack, real user still passes (check 4 code ✅, phone calibration ⏳).
+- **M2** — Proofprint blocks the same attack, real user still passes (check 4 + 6 code ✅, phone calibration ⏳).
 - **M3** — numbers on the board (APCER/BPCER) + analyst replay dashboard.
 
 ---
