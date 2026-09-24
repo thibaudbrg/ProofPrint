@@ -197,7 +197,7 @@
         <input type="checkbox" id="tMotion" checked><span class="switch" aria-hidden="true"></span>
       </label>
       <label class="toggle" for="killer">
-        <span><b>ID + profile turn</b><small>Hold your ID over one eye and turn to the side we pick. Face-swaps break at a full profile.</small></span>
+        <span><b>ID + profile turn</b><small>Hold your ID in your left hand, then turn to the side we pick. Face-swaps break at a full profile.</small></span>
         <input type="checkbox" id="killer" checked><span class="switch" aria-hidden="true"></span>
       </label>
     </div>
@@ -263,7 +263,8 @@
           </svg>
         </div>
       </div>
-      <div class="guide cardslot" id="cardSlot" hidden><span class="tick tl"></span><span class="tick tr"></span><span class="tick bl"></span><span class="tick br"></span></div>
+      <!-- no on-screen card guide: check 6 is simplified to score only the head turn,
+           the ID-in-hand is a spoken/instruction-screen cue, not something we detect -->
       <div class="arrow" id="profileArrow" hidden>➜</div>
       <div class="progress" id="liveProgress" hidden><i></i></div>
       <div class="toast" id="shotToast" hidden>✓ Photo taken</div>
@@ -381,7 +382,10 @@ let lastT = 0, frameCount = 0;
 // Phase A (check 4): a big phone glyph slides in the centre; the user moves the PHONE (pan
 // left-right / up-down, not roll, not the head). We record low-res frames + devicemotion (rotationRate deg/s + acceleration m/s^2) on one
 // performance.now() clock. Ends once enough rotation is banked (min A_MIN_MS, max A_MAX_MS).
-// Phase B (check 6): "hold your ID over one eye and turn <side>" — same stream, ~480 px frames.
+// Phase B (check 6, simplified): "hold your ID in your LEFT hand, turn your head <side>" —
+// same stream, ~480 px frames. The ID-in-hand is a demo/UX instruction only; nothing about
+// the card is detected. What's actually scored is the head turn (yaw), the one signal
+// confirmed correct on a real phone.
 const A_MIN_MS = 5000, A_MAX_MS = 7000, A_FRAME_MS = 80, A_W = 320, A_ROT_DEG = 35;
 const B_MS = 2800, B_FRAME_MS = 110, B_W = 480;
 let session = null;                       // {session_id, profile_side}
@@ -432,14 +436,14 @@ function instruct(kind, side){
       "Hold the phone about <b>a hand-span (20–25 cm)</b> from your face, straight in front of you.",
       "<b>Look at the screen and keep still.</b> It will show a few colours for about 5 seconds.",
       "Tip: turn your <b>screen brightness up</b> and stay away from windows and direct sunlight."]
-    : [ `Hold your ID card <b>over one eye</b>, close to your face.`,
+    : [ `Hold your ID card in your <b>left hand</b>.`,
         `Slowly turn your head to the <b>${side.toUpperCase()}</b> until we only see your profile.`,
-        "Keep the card up the whole time — about 3 seconds."];
-  $("insTitle").textContent = { move:"Now turn your phone", light:"Quick light check", profile:"Now hold your ID next to your face" }[kind];
+        "Keep going for about 3 seconds — an arrow will point the way."];
+  $("insTitle").textContent = { move:"Now turn your phone", light:"Quick light check", profile:"Now hold your ID and turn" }[kind];
   $("insSteps").innerHTML = steps.map((t,i) => `<div><span class="n">${i+1}</span><span>${t}</span></div>`).join("");
   $("insNote").textContent = { move:"We check that the picture moves exactly as the phone's sensors say it moved.",
                                light:"Your skin must reflect a colour sequence we pick right now — a recording or a face-swap can't.",
-                               profile:"Face-swaps fall apart at a full profile and when a card crosses the face." }[kind];
+                               profile:"Face-swap tools fall apart once the head reaches a full profile." }[kind];
   $("insArtPhone").hidden = kind !== "move"; $("insArtProfile").hidden = kind !== "profile"; $("insArtLight").hidden = kind !== "light";
   $("insWarn").hidden = kind !== "light";
   const skip = $("insSkip"); skip.hidden = kind !== "light";
@@ -485,17 +489,17 @@ async function phaseMove(videoEl){
   $("phoneGlyph").hidden = true; bar.hidden = true; hint.className = "hint";
 }
 
+// Check 6, simplified: the ID-in-hand is a spoken/instruction-screen cue only —
+// nothing about the card is detected here. What's scored is the head turn.
 async function phaseProfile(videoEl){
   const hint = $("selfieHint"), bar = $("liveProgress"), fill = bar.querySelector("i");
   profileFrames = []; meta.profile.frames = [];
   const side = (session && session.profile_side) || "left";
   meta.profile.enabled = true; meta.profile.side = side;
-  const slot = $("cardSlot"), arrow = $("profileArrow");
-  // The preview is mirrored, so the arrow points the way the user sees it; the card slot sits on
-  // the OPPOSITE side so the card stays in frame while they turn.
-  slot.className = "guide cardslot" + (side === "left" ? "" : " onleft"); slot.hidden = false;
+  const arrow = $("profileArrow");
+  // The preview is mirrored, so the arrow points the way the user sees it.
   arrow.className = "arrow " + side; arrow.textContent = side === "left" ? "⬅" : "➡"; arrow.hidden = false;
-  hint.className = "hint big"; hint.textContent = `Hold your ID over one eye, then turn ${side.toUpperCase()}`;
+  hint.className = "hint big"; hint.textContent = `ID in your left hand · turn ${side.toUpperCase()}`;
   bar.hidden = false; fill.style.width = "0%";
   meta.events.push({ name:"profile_start", t:performance.now() });
   recordingMotion = true;
@@ -503,9 +507,9 @@ async function phaseProfile(videoEl){
   await grabFrames(videoEl, B_W, B_FRAME_MS, profileFrames, meta.profile.frames, "p",
     now => now - tB >= B_MS,
     now => { fill.style.width = (Math.min(1,(now-tB)/B_MS)*100).toFixed(0) + "%";
-             hint.textContent = `ID over one eye · turn ${side.toUpperCase()} all the way… ${Math.ceil((B_MS-(now-tB))/1000)}`; });
+             hint.textContent = `Turn ${side.toUpperCase()} all the way… ${Math.ceil((B_MS-(now-tB))/1000)}`; });
   meta.events.push({ name:"profile_end", t:performance.now() });
-  recordingMotion = false; slot.hidden = true; arrow.hidden = true; bar.hidden = true; hint.className = "hint";
+  recordingMotion = false; arrow.hidden = true; bar.hidden = true; hint.className = "hint";
 }
 
 // ---- camera plumbing ----
@@ -645,7 +649,7 @@ $("begin").onclick = async () => {
   const parts = ["Selfie"]; if (lightOn()) parts.push("light check"); if (motionOn()) parts.push("phone move"); if (killerOn()) parts.push("ID turn");
   $("selfieTitle").textContent = parts.join(", ").replace(/, ([^,]*)$/, " & $1");
   $("selfieCopy").innerHTML = naiveOn() ? "Put your face inside the outline and tap. <b>Naïve mode:</b> no liveness checks."
-    : "Put your face inside the outline and tap." + (lightOn() ? " Then <b>look at the screen</b> while it shows a few colours." : "") + (motionOn() ? " Then <b>move the phone</b> to follow the outline." : "") + (killerOn() ? " Then hold your ID over one eye and turn." : "");
+    : "Put your face inside the outline and tap." + (lightOn() ? " Then <b>look at the screen</b> while it shows a few colours." : "") + (motionOn() ? " Then <b>move the phone</b> to follow the outline." : "") + (killerOn() ? " Then hold your ID in your left hand and turn." : "");
   show("idScreen");
   try { await startCamera($("idVideo"), {ideal:"environment"}, false); startFeed($("idVideo"), $("idFeed"), false); }
   catch(e){ $("idHint").textContent = "Camera error: " + e.message; }
@@ -660,6 +664,12 @@ $("idShutter").onclick = async () => {
   $("idCapRow").hidden=true; $("idConfirm").hidden=false;
 };
 $("idRetake").onclick = resetIdCapture;
+// Note on the killer feature's UX: the profile-turn side is already known here
+// (session minted at Begin), and `instruct("profile", side)` — called from
+// selfieUse below, right before phaseProfile runs — tells the user which way
+// they'll turn before the camera starts recording it. Showing it early costs
+// nothing: the protection is the server picking the side per-session and
+// checking server-side, not hiding it from the honest user holding the phone.
 $("idUse").onclick = async () => {
   if (idSide==="front" && docOn()){ setIdSide("back"); resetIdCapture(); return; }   // same rear camera, now the back
   goSelfie();
@@ -771,7 +781,8 @@ function render(res){
   const dbg = f.debug ? ` · ID ${f.debug.id_face} / selfie ${f.debug.selfie_face}` : "";
   const motxt = mo.enabled===false ? "off" : mo.verdict ? `${mo.score ?? "-"} (${mo.verdict}${mo.lag_ms!=null?`, lag ${mo.lag_ms}ms`:""}${mo.reason?`, ${mo.reason}`:""})` : "-";
   const pr = res.signals.profile || {};
-  const prtxt = !pr.enabled ? "off" : `${pr.score ?? "-"} (${pr.verdict}${pr.side?`, ${pr.side}`:""}${pr.peak_ok!=null?`, turn ${pr.peak_ok}`:""}${pr.card_frac!=null?`, card ${pr.card_frac}`:""}${pr.reason?`, ${pr.reason}`:""})`;
+  // check 6 is simplified: no card_frac field any more, only the turn is scored
+  const prtxt = !pr.enabled ? "off" : `${pr.score ?? "-"} (${pr.verdict}${pr.side?`, ${pr.side}`:""}${pr.peak_ok!=null?`, turn ${pr.peak_ok}`:""}${pr.reason?`, ${pr.reason}`:""})`;
   const li = res.signals.light || {};
   const litxt = !li.enabled ? "off" : li.opted_out ? "skipped" : `${li.score ?? "-"} (${li.verdict}${li.rho!=null?`, ρ ${li.rho}`:""}${li.acc!=null?`, ${Math.round(li.acc*6)}/6`:""}${li.p!=null?`, p ${li.p}`:""}${li.lag_ms!=null?`, lag ${li.lag_ms}ms`:""}${(li.flags||[]).length?`, ${li.flags.join("/")}`:""})`;
   $("resultMeta").textContent = `face ${f.score ?? "-"} (${f.verdict||f.reason||""}) · integrity ${igtxt} · light ${litxt} · motion ${motxt} · profile ${prtxt}${res.mode==="naive"?" · NAIVE MODE":""}${dbg}`;
@@ -783,7 +794,7 @@ $("restart").onclick = () => {
   meta.profile={enabled:false, side:null, frames:[]}; delete meta.light; burstFrames=[]; profileFrames=[]; lightFrames=[];
   $("lightFlash").hidden=true; document.documentElement.style.background="";
   setIdSide("front"); resetIdCapture(); $("docBox").hidden=true;
-  ["cardSlot","phoneGlyph","profileArrow","liveProgress","shotToast","selfiePreview"].forEach(id=>$(id).hidden=true);
+  ["phoneGlyph","profileArrow","liveProgress","shotToast","selfiePreview"].forEach(id=>$(id).hidden=true);
   $("selfieOverlay").hidden=false; $("selfieFeed").hidden=false;
   $("selfieHint").className="hint"; $("selfieHint").textContent=HINT_SELFIE; $("selfieHint").hidden=false;
   $("selfieConfirm").hidden=true; $("selfieCapRow").hidden=false;

@@ -164,8 +164,7 @@ async def capture(sid: str,
         img = face_match.imdecode(await uf.read())
         if t is not None and img is not None:
             pburst.append((float(t), img))
-    profile = profile_check.check(pburst, SESSIONS[sid].get("profile_side"), prof_enabled,
-                                  id_bgr=id_img)
+    profile = profile_check.check(pburst, SESSIONS[sid].get("profile_side"), prof_enabled)
 
     # Check 5 — light pulse: skin must reflect the colours the screen showed. Frames
     # come as `light_frames` parts matched to meta.light.frames[].file (grab time `t`;

@@ -134,8 +134,10 @@ def _pearson_abs(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def correlate(t_mid, vx, vy, mt, rx, ry) -> dict:
-    """Search the lag that best aligns gyro (rx=pitch/beta, ry=yaw/gamma) with
-    flow (vx horizontal, vy vertical). Returns score, lag and the aligned series."""
+    """Search the lag that best aligns gyro (rx=pitch-role, ry=yaw-role — see the
+    `check()` docstring for which raw DeviceMotion field the client currently
+    maps to each) with flow (vx horizontal, vy vertical). Returns score, lag
+    and the aligned series."""
     e_x = float(np.var(rx))   # pitch energy -> drives vertical flow
     e_y = float(np.var(ry))   # yaw energy   -> drives horizontal flow
     if e_x + e_y <= 0:
@@ -168,7 +170,17 @@ def _log(out: dict, extra: str = "") -> dict:
 
 def check(motion: list[dict] | None, frames: list[tuple[float, np.ndarray]] | None) -> dict:
     """motion: [{t, rx, ry, rz, ax?, ay?, az?}] deg/s + m/s^2, t in ms.
-    frames: [(t_ms, bgr)]. Returns a signal dict."""
+    frames: [(t_ms, bgr)]. Returns a signal dict.
+
+    rx/ry are a FIELD-NAME CONTRACT with the client, not literal DeviceMotion
+    property names: rx correlates against VERTICAL flow (the "pitch-role"
+    axis), ry against HORIZONTAL flow (the "yaw-role" axis) — see `correlate()`.
+    Which raw DeviceMotionEvent.rotationRate property (alpha/beta/gamma) the
+    client puts in each field was corrected 2026-09-24 after a real-phone test
+    (web/index.html's onMotion(): verified on an iPhone that a yaw "door-turn"
+    shows up in `beta`, not `gamma` as first guessed) — this function doesn't
+    care which raw property it was, only that the contract above holds.
+    """
     if not motion and not frames:
         return {"ok": False, "verdict": "absent", "score": 0.0, "reason": "no liveness burst"}
     motion = motion or []
@@ -180,8 +192,8 @@ def check(motion: list[dict] | None, frames: list[tuple[float, np.ndarray]] | No
 
     ms = sorted(motion, key=lambda m: m["t"])
     mt = np.array([float(m["t"]) for m in ms])
-    rx = np.array([float(m.get("rx") or 0.0) for m in ms])   # beta  (about x, pitch)
-    ry = np.array([float(m.get("ry") or 0.0) for m in ms])   # gamma (about y, yaw)
+    rx = np.array([float(m.get("rx") or 0.0) for m in ms])   # pitch-role -> correlated vs vertical flow
+    ry = np.array([float(m.get("ry") or 0.0) for m in ms])   # yaw-role   -> correlated vs horizontal flow
     has_acc = any(m.get("ax") is not None for m in ms)
     acc = np.array([[float(m.get("ax") or 0.0), float(m.get("ay") or 0.0), float(m.get("az") or 0.0)]
                     for m in ms]) if has_acc else None

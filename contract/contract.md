@@ -67,13 +67,17 @@ Check 6 (**implemented**, behind the "Killer feature" toggle): repeated `profile
 parts (JPEG, ~480 px wide, ~9 fps for 2.8 s, filenames `p0001.jpg`…) matched to
 `meta.profile.frames[].file`. Recorded in the SAME continuous stream right after the tilt
 phase (no confirm screen in between). `meta.profile.enabled=false` (or toggle off) skips
-the check. The server matches the card in these frames against the `id_photo` part (ORB).
+the check. The user is asked to hold their ID in their left hand — this is a UX/demo cue
+only; the server does not detect or match the card (v1/v2 tried ORB matching against the
+`id_photo` part — removed as unreliable in venue light, see PROJECT.md), it scores only the
+head-turn geometry.
 **Demo switches** (intro screen) also travel in `meta`: `"mode": "full" | "naive"` (naive = the
 broken app of Act 2: server decides on face + document only) and
-`"checks": { "motion": true, "profile": true, "doc_back": true }`. With `checks.motion=false`
-the phone sends no burst and the server returns `motion: { "enabled": false, "verdict": "absent",
-"ok": true }`, which does not affect the decision. `PROOFPRINT_MODE=naive` on the server still
-forces naive regardless of the client.
+`"checks": { "motion": true, "profile": true, "doc_back": true, "light": true }`. With
+`checks.motion=false` the phone sends no burst and the server returns `motion: { "enabled":
+false, "verdict": "absent", "ok": true }`, which does not affect the decision (same pattern
+for `light`/`profile`). `PROOFPRINT_MODE=naive` on the server still forces naive regardless
+of the client.
 `t` is `performance.now()` milliseconds, one clock for frames and motion.
 `rx/ry/rz` = `DeviceMotionEvent.rotationRate.alpha/beta/gamma` in **deg/s** — per the current
 spec `alpha` = about the device X axis (**pitch**), `beta` = about Y (**yaw**, the door-turn),
@@ -112,10 +116,8 @@ phases on the same clock (arXiv 2605.00218 aligns motion to capture events; chec
                    "series": { "t_ms": [], "z": [[]], "base": [[]], "slot": [], "used": [], "edges_ms": [], "slots": [] } },
     "integrity": { "ok": true, "flags": [] },
     "profile":   { "enabled": true, "ok": true, "verdict": "pass", "score": 0.81, "side": "left",
-                   "peak_ok": 0.24, "peak_wrong": 0.02, "turn_q": 1.0, "card_frac": 0.7,
-                   "occlusion_seen": true, "occlusion_q": 0.82, "light_q": 0.8, "snap": 0.04,
-                   "lost_at_profile": true, "card_source": { "orb": 14, "contour": 2 },
-                   "id_template": true, "flags": [],
+                   "peak_ok": 0.24, "peak_wrong": 0.02, "turn_q": 1.0, "snap": 0.04,
+                   "lost_at_profile": true, "flags": [],
                    "yaw_series": [0.0, 0.05, 0.12, null] }
   }
 }
@@ -124,10 +126,14 @@ phases on the same clock (arXiv 2605.00218 aligns motion to capture events; chec
 `video_moves_phone_still` (background pans while the phone is still → block). Head movement
 alone is masked out and yields `insufficient` ("tilt the phone, not your head").
 `profile.verdict` ∈ `pass | review | fail | insufficient | absent`. `fail` = turned to the
-**wrong side** (hard, → block). `profile.flags`: `card_not_seen`, `card_never_crossed_face`,
-`card_edge_erased_over_face` (the swap painted over the occluder), `yaw_snap`. `insufficient` = no turn / no face (→ step_up). When the
-toggle is off the signal is `{ "enabled": false, "verdict": "absent", "ok": true }` and
-does not affect the decision.
+**wrong side** (hard, → block). `profile.flags`: only `yaw_snap` (a mid-turn yaw jump that
+looks like a face-swap losing tracking lock). `insufficient` = no turn / no face (→ step_up).
+When the toggle is off the signal is `{ "enabled": false, "verdict": "absent", "ok": true }`
+and does not affect the decision. **Simplified 2026-09-24**: the ID card itself is no longer
+detected or matched — the user is asked to hold it in their left hand as a UX/demo
+instruction, but only the head-turn geometry is scored. The earlier ORB card-matching and
+occlusion-edge signals are removed (unreliable on the first phone run, added complexity
+without a validated benefit).
 `id` (check 2): check 1 matches the selfie against the document **portrait** cut out here
 (falls back to the whole card). `id.flags` only ever raise to step_up. Also
 `GET /log?limit=50` (internal): recent scored sessions + face-score min/avg/max per decision,
