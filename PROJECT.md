@@ -9,13 +9,15 @@
 
 ## 0. STATUS / LOG (update this after every change)
 
-**Last updated:** 2026-09-24 (night) · merged Vasiliy's `feat/simplify-killer-feature` (check 6
-simplified to v3, prep-screen UX, `passporteye`-venv fix, `demo.sh`) with Tibo's check 5
-(light pulse + lab) landing on `main` in parallel. **Check 6 is now v3**, superseding the v2
-(ORB card-matching + occlusion) description that was current when check 5 was built — see the
-"Recent changes" entries below for both branches' full history. `web/index.html`'s big
-instruction-screen restructuring (Tibo's) was kept; the Phase-B copy/guide inside it was
-adjusted for the v3 simplification (ID in the left hand, no on-screen card slot).
+**Last updated:** 2026-09-24 (night) · Tibo's session pulled PR #3 (Vasiliy's
+`feat/simplify-killer-feature`: check 6 simplified to v3, prep-screen UX, `passporteye`-venv fix,
+`demo.sh`) on top of the uncommitted local work: the experimental face-vs-neck tint check
+(`neck_check.py`, report-only, rides on check 5 — from the "riskon" Claude session) and the light-lab
+dashboard's merged "screen vs skin" panel. **Check 6 is now v3**, superseding the v2 (ORB
+card-matching + occlusion) description that was current when check 5 was built — see the "Recent
+changes" entries below for both branches' full history. `web/index.html`'s big instruction-screen
+restructuring (Tibo's) was kept; the Phase-B copy/guide inside it was adjusted for the v3
+simplification (ID in the left hand, no on-screen card slot). Only PROJECT.md conflicted in the pull.
 
 **⚠ Ownership note:** touches `server/profile_check.py`, `server/main.py` (one call site),
 `web/index.html` (Phase B copy + guide, plus a new prep screen before the live capture),
@@ -90,7 +92,8 @@ needs `brew install tesseract` separately either way.
   scored capture — date, decision, face/motion scores, doc type, flags, phone/desktop, camera
   label, git SHA. **First given name only**, no other personal data, no images. `GET /log`.
 - [ ] **Attack rig** (OBS + deepfake) → milestone M1 ("naïve app fooled").
-- [ ] **Analyst dashboard** (two motion curves overlaid — the money shot).
+- [x] **Analyst dashboard** (`/dashboard`): aggregates + per-session trace with every check's graph
+  (light screen-vs-skin panel, motion curves overlaid, profile yaw) and the decision reasons.
 - [ ] **APCER/BPCER** evaluation run.
 
 **Open TODO / next actions**
@@ -114,7 +117,7 @@ needs `brew install tesseract` separately either way.
    cropped PORTRAIT, so re-measure; use `GET /log` → `stats` (min/avg/max per decision).
 3b. Phone-test check 2 on a real back-of-card: does the MRZ read? (`[id_check]` server log line.)
 3c. ⚠ `swisscom-research/` is MISSING from disk (deleted?) — §5 pointers are dead. Restore or drop.
-4. Analyst dashboard: plot `signals.motion.series` + `signals.profile.yaw_series` + `signals.light.series`.
+4. ~~Analyst dashboard~~ done → `/dashboard`. Next: APCER/BPCER table from its counts (M3).
 5. **Calibrate check 5 on phones** with `/lab/light` (laptop) + `<tunnel>/lab/light/phone` (phone):
    ≥ 5 genuine runs per phone × {office light, near a window, dim} + a replay (play a recorded
    genuine run back to the camera) + a static video. Want genuine: ρ ≥ 0.7, 5–6/6 slots, p ≤ 0.01,
@@ -122,6 +125,15 @@ needs `brew install tesseract` separately either way.
    Knobs in `light_check.py`: `SCORE_PASS/REVIEW`, `P_MAX`, `SNR_MIN/A_MIN`, `LAG_OK`, `POST_MS/PRE_MS`.
    Unknowns to confirm: iOS Safari fills `captureTime`? rAF throttled to 30 fps in Low Power Mode?
    Does the Safari toolbar strip / Night Shift hurt the blue slot? (all logged per run in the lab)
+6. **Face-vs-neck tint (EXPERIMENTAL, ~2 h box) — keep it only if it separates OUR data.** It runs on
+   every check-5 capture and lands in `signals.light.neck` + audit `neck_score/neck_verdict`; it never
+   touches the decision. Collect ≥ 5 genuine + ≥ 5 attack runs (live swap via OBS, own faces), save each
+   `/result` JSON as one line with `"label": "genuine"|"attack"` in `runs.jsonl`, then
+   `cd server && ./.venv/bin/python neck_check.py eval runs.jsonl` → KEEP / DROP / MORE DATA.
+   Log line per run: `[neck_check] verdict=… face:amp=…,rho=… neck:…cos=…,gain=…,dlag=…`.
+   **If the live-swap test shows the flash leaking through** (check 5 passes the swap), this is the
+   fallback: look at `neck_lag` / `*_direction` there. DROP → delete `neck_check.py`, its test, the
+   6 lines in `main._light_signal` and the 2 audit columns.
 
 **Check-4 lab (debug check 4 in isolation, live)** — `server/lab.py`, `web/lab.html`, `web/lab_phone.html`:
 - Laptop: **http://localhost:8000/lab** — polls every second; shows aligned video-vs-gyro curves
@@ -145,6 +157,51 @@ needs `brew install tesseract` separately either way.
 - Own endpoints (`GET /lab/light/latest|{id}`, `DELETE /lab/light`), in-memory, last 40 runs.
 
 **Recent changes**
+- **Phone-move phase reworked (UX):** fixed **6 s** (`A_MS`) — the progress bar is the clock and never
+  completes early (before: ended as soon as 35° were banked after 5 s). The silhouette overlay is hidden
+  during this phase (only the turning-phone glyph). **Haptic coach:** the yaw rate (β) is integrated into
+  an angle; every time it swings 18° past the last turning point the phone buzzes and the hint flips
+  "Turn the phone LEFT ⟵ / RIGHT ⟶"; if nothing happens for 1.3 s a soft tick + "a bit more" / "turn the
+  PHONE, not your head". Android: `navigator.vibrate`; **iOS Safari has no vibration API** — we click a
+  hidden `<input type="checkbox" switch>` (Taptic on iOS ≥ 17.4, silent otherwise; best effort).
+- **Fixed a check-4 crash that silently lost two real captures (24 Sep 18:3x–18:5x):** with a flat
+  wall behind the user the background has no corners, so `motion_check.global_flow` falls back to
+  phase correlation; the face mask multiplied the float32 frame into float64, `cv2.phaseCorrelate`
+  asserted on the type mismatch → the whole `/capture` returned 500, nothing reached the audit log
+  (that is why "the last non-naïve run didn't appear in the dashboard"). Fixed (`m.astype(float32)`),
+  regression test added, 53 tests green. **Lesson:** a crash in ANY check kills the capture — the
+  dashboard now needs a run per check to be visible; consider try/except per check → verdict `error`.
+- **Dashboard statuses normalised:** every check everywhere is one disc: ✓ green passed · ~ orange
+  unclear (→ second check) · ✗ red failed · – grey not run. No more "flagged / off / unclear / naïve"
+  pills; "naïve" is plain red text in the app column. The underlying verdict is in the tooltip.
+- **Analyst dashboard — `http://localhost:8000/dashboard`** (`web/dashboard.html` + shared `web/charts.js`).
+  Two tabs, corporate-readable. **Summary**: 4 tiles (verifications, verified, second check, blocked,
+  with %) + one passed/unclear/failed bar per check. **Sessions**: the list (who, when, result, one pill
+  per check) → click a run → banner with the decision and its plain-English **reasons**, then one card
+  per check: Document (MRZ fields, check digits), Face match (gauge), Capture integrity, Profile turn
+  (yaw chart), Light (the screen-vs-skin panel), Phone move (camera vs gyroscope, left/right + up/down).
+  Wording is non-technical ("chance it's random", "camera delay", "agreement left/right").
+  Server side: `result.reasons[]`, `result.checks_enabled`, `result.timings_ms` (from `_decide()` in
+  `main.py`); audit log stores `result_json` (images stripped, no sensor traces) + `profile_score/verdict`
+  + `mode` (auto-migrated); `GET /log/{session_id}`; `stats()` now returns counts per decision / mode /
+  platform / check verdict + spreads for every scored check. Rows scored before this change have no
+  trace (the dashboard says so and shows the summary columns). `web/lab_light.html` now uses `charts.js`.
+- **Demo switches moved behind a gear (top right of the brand bar)** — a normal user sees a clean
+  intro with no toggles. The gear opens a bottom sheet "Demo settings": one red "Naïve app" switch
+  (one-line hint), then a 2×2 grid "Document back · Light · Phone move · Profile turn", no descriptions.
+  **Naïve ON forces the three liveness switches OFF and greys them out** (their previous state is
+  restored when naïve goes OFF) and shows a red "NAÏVE APP" badge next to the logo, so the audience
+  can tell Act 2 from Act 3. Document back stays available in naïve (naïve = face + document).
+- **Light lab dashboard: one "screen colour vs skin reflection" panel** (`web/lab_light.html`) replaces
+  the separate strip + chroma chart: row 1 = the minted sequence on the time axis, row 2 = the colour the
+  skin answered (✓/✗) right under it, chart = the three skin channels with the on-screen colour shaded.
+  Legend line: `n of 6 colours matched · ρ · camera lag`. Meant to be shown to non-engineers.
+- **First real iPhone runs of check 5 (24 Sep 19:5x):** 3 app runs + 2 lab runs genuine → all `pass`,
+  ρ 0.92–0.99, 6/6 slots, p ≤ 0.005, SNR 23–89, lag 80–100 ms, 30 fps rVFC, `captureTime` present on
+  iOS. Measured chroma shift 0.6–1.1 (research expected 0.07–0.25 — the screen at a hand-span is a much
+  stronger light than planned). One `insufficient` = face out of frame (18/162 face frames). Fallback
+  path (`no_bg_reference`, bright wall) exercised and passed. Safari rAF ran at 30 Hz (Low Power Mode?)
+  without harm. **Attack side (replay / static video) has 0 real runs yet.**
 - **Merge reconciliation (2026-09-24 night):** `feat/simplify-killer-feature` (check 6 v3,
   passporteye fix, `demo.sh`) merged with `main`'s check-5 work, which had landed in parallel
   and diverged from BEFORE the v3 simplification. Concretely: my earlier "get ready" prep
@@ -181,6 +238,19 @@ needs `brew install tesseract` separately either way.
   showed the contour detector didn't work in venue light, and the team decided the fix (ORB)
   added complexity without a demo benefit — the head turn alone was already the validated,
   working signal.
+- **Face-vs-neck lighting consistency — experimental, NOT fused** (`server/neck_check.py`,
+  `tests/test_neck_check.py`, 7 tests; idea from deepidv's "lighting consistency / boundary artefacts").
+  Same frames + colour log as check 5. Regions from YuNet's 5 points: cheeks (inside any swap mask) vs
+  neck (below chin), ears, hairline; each region's guard-detrended log-chroma response per colour slot at
+  its OWN best lag, then per region vs cheeks: cosine, gain, lag difference. Verdict `consistent |
+  inconsistent | insufficient`. Flags: `face_flat_periphery_live` (swap w/o colour transfer),
+  `periphery_flat_face_live` (only the injected face is tinted), `<region>_lag|_direction|_gain`
+  (colour-transfer swap: the flash leaks through but late/odd). Synthetic, 8 seeds each: genuine
+  (bright/dim) 24/24 consistent; weak daylight 8/8 insufficient (never inconsistent); flat-face swap,
+  face-only tint and +240 ms swap 8/8 inconsistent each; **+120 ms swap caught 2/8 — honest miss**.
+  Wired in `main._light_signal` (try/except, can't break check 5); audit log + `neck_score/neck_verdict`
+  (auto-migrated). Tests were run on a guest-side snapshot (scratch venv), **not** on the host venv
+  (re-run on the host after the PR #3 pull — see the test count in the STATUS line above).
 - **Check 5 light pulse + light lab** (see the ticked item above). New: `server/light_check.py`,
   `web/light.js`, `web/lab_light*.html`, `tests/test_light_check.py`; `POST /session/{id}/light`;
   `/session` no longer returns the old unused `challenge` list; intro has a 5th switch; result line
@@ -335,6 +405,7 @@ server/               ← Person A
   motion_check.py     ← check 4 (gyro ↔ video, background flow + lag search)
   light_check.py      ← check 5 (screen colours ↔ skin: mint, skin/background ROIs, lag search, permutation test)
   profile_check.py    ← check 6, v3 simplified (profile turn: yaw from YuNet landmarks, side-nonce, snap-back)
+  neck_check.py       ← EXPERIMENTAL face-vs-neck/ears/hairline tint consistency (report-only) + `eval`
   lab.py              ← /lab (check 4) + /lab/light (check 5) debugging endpoints
   audit_log.py        ← SQLite log of scores per session (first name only) + GET /log
   data/               ← proofprint.db lives here (gitignored)
@@ -345,6 +416,8 @@ server/               ← Person A
 web/                  ← Person B
   index.html          ← phone capture page
   light.js            ← check 5 capture (painter + rVFC grabber), shared with the lab
+  dashboard.html      ← analyst dashboard (/dashboard): aggregates + per-session trace
+  charts.js           ← shared SVG charts (light panel, motion curves, profile yaw, gauge)
   lab.html, lab_phone.html, lab_light.html, lab_light_phone.html  ← the two labs
 research/             ← check-5 research notes (algorithm + phone capture), 24 Sep
 swisscom-research/    ← the research (READ THESE for methods/papers):
