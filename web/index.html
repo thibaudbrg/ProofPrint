@@ -81,6 +81,11 @@
   .card .tick.tr,.cardslot .tick.tr{top:-2px;right:-2px;border-top-width:3px;border-right-width:3px;border-top-right-radius:14px}
   .card .tick.bl,.cardslot .tick.bl{bottom:-2px;left:-2px;border-bottom-width:3px;border-left-width:3px;border-bottom-left-radius:14px}
   .card .tick.br,.cardslot .tick.br{bottom:-2px;right:-2px;border-bottom-width:3px;border-right-width:3px;border-bottom-right-radius:14px}
+  /* flashlight toggle on the document viewport (only shown when the camera has a torch) */
+  .torch{position:absolute;top:12px;right:12px;z-index:3;width:42px;height:42px;border-radius:50%;padding:10px;
+         background:rgba(12,12,13,.55);color:#fff;border:1.5px solid rgba(255,255,255,.7);backdrop-filter:blur(6px)}
+  .torch svg{width:100%;height:100%;display:block}
+  .torch[aria-pressed="true"]{background:#fff;color:var(--ink);border-color:#fff}
   .hint{position:absolute;left:0;right:0;bottom:14px;text-align:center;color:#fff;font-size:13.5px;font-weight:600;
         text-shadow:0 1px 6px rgba(0,0,0,.6);z-index:2;padding:0 14px}
   .hint.warn{color:#FFD27A}
@@ -213,6 +218,10 @@
       <canvas id="idFeed" class="feed"></canvas>
       <img id="idShot" hidden alt="">
       <div class="guide card" id="idGuide"><span class="tick tl"></span><span class="tick tr"></span><span class="tick bl"></span><span class="tick br"></span></div>
+      <button class="torch" id="idTorch" hidden aria-label="Flashlight" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 3h12v4l-3 3v11H9V10L6 7z"></path><path d="M12 13v3"></path></svg>
+      </button>
       <div class="hint" id="idHint">Line up your ID and tap the button</div>
     </div>
     <div id="idCapRow"><div class="shutter" id="idShutter" role="button" aria-label="Capture document"></div>
@@ -419,7 +428,9 @@ let lastT = 0, frameCount = 0;
 // confirmed correct on a real phone.
 const A_MS = 6000, A_FRAME_MS = 80, A_W = 320, A_ROT_DEG = 35;   // fixed 6 s — the bar is the clock, never early
 const A_SWING_DEG = 18, A_NUDGE_MS = 1300;                        // haptic coach: buzz at each ±18° swing, nudge if stalled
-const B_MS = 2800, B_FRAME_MS = 110, B_W = 480;
+const B_MS = 4500, B_FRAME_MS = 110, B_W = 480;          // recording window, starts when the head starts to move
+const B_ARM_MAX_MS = 12000, B_SETTLE_MS = 800, B_PREROLL_MS = 600;   // wait for the turn (max), settle, frontal pre-roll
+const B_MOVE_THRESH = 6.0, B_MOVE_TICKS = 2;               // mean |Δ| in the centre patch (8-bit), consecutive ticks
 let session = null;                       // {session_id, profile_side}
 let burstFrames = [], profileFrames = [], lightFrames = []; // [{name, blob}] — match meta.frames / meta.profile.frames / meta.light.frames
 let recordingMotion = false, rotAccum = 0, lastMotionT = 0, yawAngle = 0;
@@ -482,7 +493,7 @@ function instruct(kind, side){
       "<b>Look at the screen and keep still.</b> It will show a few colours for about 5 seconds.",
       "Tip: turn your <b>screen brightness up</b> and stay away from windows and direct sunlight."]
     : [ `Hold your ID card in your <b>left hand</b>.`,
-        `Slowly turn your head to the <b>${side.toUpperCase()}</b> until we only see your profile.`,
+        `Take your time. When you're ready, <b>slowly</b> turn your head to the <b>${side.toUpperCase()}</b> until we only see your profile — the clock only starts when you start turning.`,
         "Keep going for about 3 seconds — an arrow will point the way."];
   $("insTitle").textContent = { move:"Now turn your phone", light:"Quick light check", profile:"Now hold your ID and turn" }[kind];
   $("insSteps").innerHTML = steps.map((t,i) => `<div><span class="n">${i+1}</span><span>${t}</span></div>`).join("");
@@ -550,29 +561,72 @@ async function phaseMove(videoEl){
 
 // Check 6, simplified: the ID-in-hand is a spoken/instruction-screen cue only —
 // nothing about the card is detected here. What's scored is the head turn.
+// Cheap "is the head moving?" detector for the profile phase: mean absolute difference between
+// consecutive 48-px frames in the centre of the picture (the phone is still, only the head moves).
+function motionProbe(videoEl){
+  const c = document.createElement("canvas"); c.width = 64; c.height = 48;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  let prev = null;
+  return () => {
+    ctx.drawImage(videoEl, 0, 0, 64, 48);
+    const d = ctx.getImageData(12, 6, 40, 36).data;          // centre patch only
+    const g = new Float32Array(d.length / 4);
+    for (let i = 0, j = 0; i < d.length; i += 4, j++) g[j] = (d[i] + d[i+1] + d[i+2]) / 3;
+    let e = 0;
+    if (prev) { for (let j = 0; j < g.length; j++) e += Math.abs(g[j] - prev[j]); e /= g.length; }
+    prev = g;
+    return e;
+  };
+}
+
 async function phaseProfile(videoEl){
   const hint = $("selfieHint"), bar = $("liveProgress"), fill = bar.querySelector("i");
   profileFrames = []; meta.profile.frames = [];
   const side = (session && session.profile_side) || "left";
   meta.profile.enabled = true; meta.profile.side = side;
-  const arrow = $("profileArrow");
+  const arrow = $("profileArrow"), SIDE = side.toUpperCase(), glyph = side === "left" ? "⟵" : "⟶";
   // The preview is mirrored, so the arrow points the way the user sees it.
   arrow.className = "arrow " + side; arrow.textContent = side === "left" ? "⬅" : "➡"; arrow.hidden = false;
-  hint.className = "hint big"; hint.textContent = `ID in your left hand · turn ${side.toUpperCase()}`;
+  hint.className = "hint big"; hint.innerHTML = `ID in your left hand · when you're ready, slowly turn <b>${SIDE}</b> ${glyph}`;
   bar.hidden = false; fill.style.width = "0%";
   meta.events.push({ name:"profile_start", t:performance.now() });
   recordingMotion = true;
-  const tB = performance.now();
+  // Two states. ARMED: we film but the clock does not run — the user takes their time to get the
+  // card up and understand the arrow. The clock (B_MS) starts the moment the head starts to move
+  // (motion probe), or after B_ARM_MAX_MS at the latest. Frames before the start are dropped
+  // except a short frontal pre-roll (the server wants a frontal frame first).
+  const probe = motionProbe(videoEl);
+  const t0 = performance.now();
+  let tStart = null, moveTicks = 0;
   await grabFrames(videoEl, B_W, B_FRAME_MS, profileFrames, meta.profile.frames, "p",
-    now => now - tB >= B_MS,
-    now => { fill.style.width = (Math.min(1,(now-tB)/B_MS)*100).toFixed(0) + "%";
-             hint.textContent = `Turn ${side.toUpperCase()} all the way… ${Math.ceil((B_MS-(now-tB))/1000)}`; });
+    now => tStart !== null && now - tStart >= B_MS,
+    now => {
+      if (tStart === null) {
+        const e = now - t0 > B_SETTLE_MS ? probe() : 0;
+        moveTicks = e >= B_MOVE_THRESH ? moveTicks + 1 : 0;
+        if (moveTicks >= B_MOVE_TICKS || now - t0 >= B_ARM_MAX_MS) {
+          tStart = now; meta.events.push({ name:"profile_turn_detected", t:now });
+          haptic("tick");
+        } else if (now - t0 > 4000) hint.innerHTML = `Waiting for you · slowly turn your head <b>${SIDE}</b> ${glyph}`;
+        return;
+      }
+      fill.style.width = (Math.min(1, (now - tStart) / B_MS) * 100).toFixed(0) + "%";
+      const left = Math.ceil((B_MS - (now - tStart)) / 1000);
+      hint.innerHTML = left > 2 ? `Keep turning <b>${SIDE}</b> ${glyph} · all the way to your profile · ${left}`
+                                : `Hold it there… ${left}`;
+    });
+  haptic("double");
   meta.events.push({ name:"profile_end", t:performance.now() });
   recordingMotion = false; arrow.hidden = true; bar.hidden = true; hint.className = "hint";
+  // Drop the waiting frames (keep a short frontal pre-roll before the turn started).
+  const tCut = (tStart ?? t0) - B_PREROLL_MS;
+  const keep = new Set(meta.profile.frames.filter(f => f.t >= tCut).map(f => f.file));
+  meta.profile.frames = meta.profile.frames.filter(f => keep.has(f.file));
+  profileFrames = profileFrames.filter(f => keep.has(f.name));
 }
 
 // ---- camera plumbing ----
-async function stopStream(){ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }
+async function stopStream(){ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } torchOn=false; $("idTorch").hidden=true; }
 async function startCamera(videoEl, facing, collectMeta){
   await stopStream();
   stream = await navigator.mediaDevices.getUserMedia({
@@ -613,6 +667,23 @@ function blurHint(el, sharp){
 }
 const HINT_ID="Line up your ID and tap the button", HINT_ID_BACK="Line up the back — the «<<<» lines — and tap",
       HINT_SELFIE="Center your face and tap the button";
+// Flashlight for the document shots: shown only when the rear camera reports a torch
+// (Android Chrome; iOS Safari 17+ on the back camera). Off again whenever the stream stops.
+let torchOn = false;
+function torchTrack(){ return stream && stream.getVideoTracks()[0]; }
+function torchAvailable(){
+  const t = torchTrack(); if(!t || !t.getCapabilities) return false;
+  try { return !!t.getCapabilities().torch; } catch(_){ return false; }
+}
+async function setTorch(on){
+  const t = torchTrack(); if(!t) return;
+  try { await t.applyConstraints({ advanced:[{ torch: on }] }); torchOn = on; }
+  catch(_){ torchOn = false; }
+  $("idTorch").setAttribute("aria-pressed", String(torchOn));
+}
+function showTorchBtn(){ torchOn = false; $("idTorch").setAttribute("aria-pressed", "false"); $("idTorch").hidden = !torchAvailable(); }
+$("idTorch").onclick = () => setTorch(!torchOn);
+
 function resetIdCapture(){
   $("idShot").hidden=true; $("idGuide").hidden=false; $("idFeed").hidden=false;
   startFeed($("idVideo"), $("idFeed"), false);
@@ -620,6 +691,7 @@ function resetIdCapture(){
   $("idHint").textContent = idSide==="front" ? HINT_ID : HINT_ID_BACK;
   $("idConfirm").hidden=true; $("idCapRow").hidden=false;
   $("idSkipBack").hidden = idSide!=="back";
+  showTorchBtn();
 }
 function setIdSide(side){
   idSide = side;
@@ -710,7 +782,7 @@ $("begin").onclick = async () => {
   $("selfieCopy").innerHTML = naiveOn() ? "Put your face inside the outline and tap. <b>Naïve mode:</b> no liveness checks."
     : "Put your face inside the outline and tap." + (lightOn() ? " Then <b>look at the screen</b> while it shows a few colours." : "") + (motionOn() ? " Then <b>move the phone</b> to follow the outline." : "") + (killerOn() ? " Then hold your ID in your left hand and turn." : "");
   show("idScreen");
-  try { await startCamera($("idVideo"), {ideal:"environment"}, false); startFeed($("idVideo"), $("idFeed"), false); }
+  try { await startCamera($("idVideo"), {ideal:"environment"}, false); startFeed($("idVideo"), $("idFeed"), false); showTorchBtn(); }
   catch(e){ $("idHint").textContent = "Camera error: " + e.message; }
 };
 
@@ -718,7 +790,7 @@ $("begin").onclick = async () => {
 $("idShutter").onclick = async () => {
   const out = await cropToGuide($("idVideo"), $("idFeed"), $("idGuide")); if(!out) return; const {blob,url,sharp}=out; stopFeed();
   if (idSide==="front"){ idBlob = blob; idFrontUrl = url; } else { idBackBlob = blob; }
-  $("idShot").src = url; $("idShot").hidden=false; $("idGuide").hidden=true; $("idSkipBack").hidden=true;
+  $("idShot").src = url; $("idShot").hidden=false; $("idGuide").hidden=true; $("idSkipBack").hidden=true; $("idTorch").hidden=true;
   $("idFeed").hidden=true; blurHint($("idHint"), sharp);
   $("idCapRow").hidden=true; $("idConfirm").hidden=false;
 };
@@ -740,22 +812,22 @@ $("selfieShutter").onclick = async () => {
   if(recordingMotion || $("selfieCapRow").hidden) return;
   const out = await cropToGuide($("selfieVideo"), $("selfieFeed"), $("selfieGuide"), 900); if(!out) return;
   selfieBlob = out.blob; $("selfieShot").src = out.url;
-  stopFeed();                                          // freeze on the still; the stream stays open for the phases
-  $("selfiePreview").src = out.url; $("selfiePreview").hidden = false; $("selfieFeed").hidden = true; $("selfieOverlay").hidden = true;
-  $("shotToast").hidden = false; setTimeout(() => $("shotToast").hidden = true, 1400);
-  blurHint($("selfieHint"), out.sharp);
-  $("selfieCapRow").hidden = true; $("selfieConfirm").hidden = false;
+  stopFeed();                                          // the stream stays open for the live phases
+  $("selfieCapRow").hidden = true; $("selfieHint").hidden = true;
+  haptic("tick");
+  runLivePhases();                                     // no preview, no confirm — straight on
 };
 function resumeSelfieFeed(){
   $("selfiePreview").hidden = true; $("selfieFeed").hidden = false; $("selfieOverlay").hidden = false;
   startFeed($("selfieVideo"), $("selfieFeed"), true);
 }
-$("selfieRetake").onclick = () => {
+$("selfieRetake").onclick = () => {                  // (confirm row is no longer shown; kept for safety)
   selfieBlob = null; resumeSelfieFeed();
   $("selfieHint").className = "hint"; $("selfieHint").textContent = HINT_SELFIE; $("selfieHint").hidden = false;
   $("selfieConfirm").hidden = true; $("selfieCapRow").hidden = false;
 };
-$("selfieUse").onclick = async () => {
+$("selfieUse").onclick = () => runLivePhases();
+async function runLivePhases(){
   $("selfieConfirm").hidden = true;
   const v = $("selfieVideo");
   try {
@@ -778,7 +850,7 @@ $("selfieUse").onclick = async () => {
     }
   } finally { recordingMotion = false; }
   stopFeed(); stopStream(); submit();
-};
+}
 
 // ---- SUBMIT ----
 async function submit(){

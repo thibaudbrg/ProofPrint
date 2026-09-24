@@ -85,7 +85,8 @@ spec `alpha` = about the device X axis (**pitch**), `beta` = about Y (**yaw**, t
 Android both report deg/s for this event. `ax/ay/az` = `DeviceMotionEvent.acceleration`
 (gravity removed, m/s²) — used for the stationary-device test. `events` marks the capture
 phases on the same clock (arXiv 2605.00218 aligns motion to capture events; check 5 adds
-`light_start` / `light_end`). Frame files are matched to `meta.frames[].file` by filename.
+`light_start` / `light_end`; check 6 adds `profile_turn_detected` = when the phone saw the head
+start to move and its 4.5 s window began). Frame files are matched to `meta.frames[].file` by filename.
 
 ## 3. GET /session/{id}/result  → the decision + why
 ```json
