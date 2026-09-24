@@ -45,8 +45,8 @@ review it together before merging.
 - [ ] **APCER/BPCER** evaluation run.
 
 **Open TODO / next actions**
-0. **Live now:** `https://limousines-delaware-motors-keywords.trycloudflare.com` (Vasiliy's
-   Mac, uvicorn --reload on :8000 + cloudflared; dies with that process — restart and update).
+0. **Live now:** `https://jvc-fisheries-six-utc.trycloudflare.com` (Vasiliy's Mac, uvicorn
+   --reload on **:8010** + cloudflared; dies with that process — restart and update this line).
 1. **Phone-test check 4** (iPhone + Android): run a genuine burst, read the server log line
    `[motion_check] score=… lag=…`. Expect score > 0.6 and lag 0–150 ms. If real phones
    score low, first suspects: axis mapping (`ry`=gamma↔horizontal flow), frame timestamps,
@@ -249,6 +249,8 @@ if missing. Camera needs HTTPS — that's why the tunnel exists.
   so a sign flip between platforms can't break it; a unit mix-up only affects `gyro_rms_dps`.
 - iOS needs `DeviceMotionEvent.requestPermission()` inside a user tap; no brightness control.
 - cloudflared quick-tunnel URL changes if the process restarts.
+- **VS Code Live Share forwards a teammate's :8000 onto your own 127.0.0.1:8000.** If your
+  tunnel or curl shows the OLD app, that's why — run your uvicorn on another port (8010).
 - `pip install mediapipe` pulls a 2nd OpenCV — keep only one.
 - Attack only ever on OUR app, with CONSENTING teammate faces; delete synthetic media after.
 
