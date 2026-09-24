@@ -1,0 +1,196 @@
+<title>Proofprint Brief</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FAF9F6; --surface:#FFFFFF; --ink:#1C1A17; --ink-2:#6C6860; --line:#EAE6DE;
+    --accent:#C96442; --accent-ink:#A94D2E; --accent-bg:#F7E9E2;
+    --ok:#1E7A47; --ok-bg:#E7F2EB; --warn:#B26B0C; --warn-bg:#F8EEDA; --block:#C13B2C; --block-bg:#FAE7E3;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#171512; --surface:#211E1A; --ink:#F3EFE8; --ink-2:#A69C8F; --line:#3A342C;
+      --accent:#E08361; --accent-ink:#F0A585; --accent-bg:#3A2620;
+      --ok:#5FBE86; --ok-bg:#173325; --warn:#E3A63E; --warn-bg:#3A2E12; --block:#EE7A6A; --block-bg:#3A1D18;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#171512; --surface:#211E1A; --ink:#F3EFE8; --ink-2:#A69C8F; --line:#3A342C;
+    --accent:#E08361; --accent-ink:#F0A585; --accent-bg:#3A2620;
+    --ok:#5FBE86; --ok-bg:#173325; --warn:#E3A63E; --warn-bg:#3A2E12; --block:#EE7A6A; --block-bg:#3A1D18;
+    color-scheme: dark;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:'Hanken Grotesk',system-ui,sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:640px;margin:0 auto;padding:28px 20px 56px}
+  h1,h2,h3{font-family:'Fraunces',Georgia,serif;font-weight:600;margin:0;letter-spacing:-.01em}
+  .mono{font-family:'Space Mono',ui-monospace,monospace}
+  .eyebrow{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+           color:var(--accent-ink);font-weight:700}
+  p{margin:0}
+  .brand{display:flex;align-items:center;gap:9px;margin-bottom:22px}
+  .brand svg{width:22px;height:22px;flex:none}
+  .brand span{font-family:'Space Mono',monospace;font-weight:700;letter-spacing:.22em;font-size:13px;color:var(--ink-2)}
+  .hero h1{font-size:clamp(28px,7vw,38px);line-height:1.08;text-wrap:balance;margin-top:8px}
+  .hero .tag{font-size:16px;color:var(--ink-2);margin-top:10px;max-width:46ch}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-family:'Space Mono',monospace;font-size:11px;
+        font-weight:700;letter-spacing:.04em;padding:4px 10px;border-radius:999px}
+  .pill.block{background:var(--block-bg);color:var(--block)}
+  .pill.ok{background:var(--ok-bg);color:var(--ok)}
+  .pill.accent{background:var(--accent-bg);color:var(--accent-ink)}
+  section{margin-top:38px}
+  section > h2{font-size:20px}
+  section > .lede{color:var(--ink-2);font-size:14.5px;margin-top:6px;max-width:56ch}
+  .stack{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+  .signal{display:grid;grid-template-columns:28px 1fr;gap:12px 14px}
+  .signal .n{width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;display:grid;
+             place-items:center;font-family:'Space Mono',monospace;font-weight:700;font-size:12px}
+  .signal h3{font-size:15px}
+  .signal .why{font-size:13.5px;color:var(--ink-2);margin-top:4px;line-height:1.5}
+  .signal .cite{display:inline-block;margin-top:7px;font-family:'Space Mono',monospace;font-size:10.5px;
+                 color:var(--accent-ink);background:var(--accent-bg);padding:2px 7px;border-radius:6px}
+  .stat-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+  .stat{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+  .stat .v{font-family:'Fraunces',serif;font-size:22px;font-weight:600}
+  .stat .k{font-size:12px;color:var(--ink-2);margin-top:2px;line-height:1.35}
+  .divider{height:1px;background:var(--line);margin:38px 0 0}
+  .flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:'Space Mono',monospace;
+        font-size:11.5px;color:var(--ink-2);margin-top:14px}
+  .flow b{color:var(--ink);font-weight:700}
+  .flow .arrow{color:var(--accent)}
+  footer{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);
+         display:flex;flex-direction:column;gap:6px;color:var(--ink-2);font-size:13px}
+  footer .mono{color:var(--ink)}
+  a{color:var(--accent-ink)}
+  .limit{font-size:13px;color:var(--ink-2);margin-top:10px;padding-left:14px;border-left:2px solid var(--line)}
+</style>
+
+<div class="wrap">
+  <div class="brand">
+    <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" aria-hidden="true">
+      <circle cx="12" cy="12" r="7"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="var(--ink)"></path>
+      <circle cx="12" cy="12" r="2" fill="var(--accent)" stroke="none"></circle>
+    </svg>
+    <span>PROOFPRINT</span>
+  </div>
+
+  <div class="hero">
+    <span class="eyebrow">Swisscom · Fighting Identity Fraud in the Age of AI</span>
+    <h1>A deepfake can fake your face. It can't fake your phone.</h1>
+    <p class="tag">Onboarding for a Qualified Electronic Signature asks for an ID photo and a selfie.
+      A $50 face-swap tool defeats that check today. We fuse signals a deepfake can't reproduce —
+      device physics, not pixels — into one risk score, with a step-up only for risky sessions.</p>
+  </div>
+
+  <section>
+    <span class="eyebrow">The vector</span>
+    <h2 style="margin-top:6px">Deepfake video injected into the onboarding capture</h2>
+    <p class="lede">Confirmed with Swisscom's own trust-services mentors: voice deepfakes are already
+      covered in production. The open gap is <b style="color:var(--ink)">deepfake pictures</b> in the
+      ID + selfie journey — exactly what current liveness checks are losing ground on industry-wide.</p>
+  </section>
+
+  <section>
+    <span class="eyebrow">The mitigation</span>
+    <h2 style="margin-top:6px">Six checks, fused into one decision</h2>
+    <p class="lede">Every added check keeps genuine users passing silently. Nothing here is a bare
+      retry — a retry only teaches an attacker which fake failed.</p>
+
+    <div class="stack">
+      <div class="card signal">
+        <div class="n">1–3</div>
+        <div>
+          <h3>Identity, document, capture integrity</h3>
+          <p class="why">Face match against the deskewed document portrait · MRZ read with ICAO
+            check digits recomputed, never trusted from OCR · virtual-camera device labels and
+            sensor presence flagged before anything else runs.</p>
+        </div>
+      </div>
+
+      <div class="card signal">
+        <div class="n">4</div>
+        <div>
+          <h3>Gyroscope ↔ video — the core signal</h3>
+          <p class="why">The phone tilts; a real camera's background must move with it. Background
+            optical flow (the face masked out, so a nodding head is never mistaken for injection)
+            correlated against device motion, lag-searched. A phone that never moves at all —
+            a stand, an emulator — is rejected outright.</p>
+          <span class="cite">arXiv:2605.00218 — selfie-capture dynamics as an auxiliary signal</span>
+        </div>
+      </div>
+
+      <div class="card signal">
+        <div class="n">5</div>
+        <div>
+          <h3>Light pulse — screen colour ↔ skin</h3>
+          <p class="why">The screen paints a server-minted, single-use colour sequence; the skin's
+            reflected chroma must match it, timed within a lag window. A recording or a face-swap
+            can't answer a challenge that didn't exist when the fake was made.</p>
+          <span class="cite">cf. iProov Flashmark — challenge–response liveness</span>
+        </div>
+      </div>
+
+      <div class="card signal">
+        <div class="n">6</div>
+        <div>
+          <h3>Profile turn — the killer feature</h3>
+          <p class="why">A server-picked, per-session nonce: turn your head fully to one side.
+            Real-time face-swap models map only 50–60% of landmarks in profile and visibly warp
+            past ~60°. The side can't be pre-computed, and it's what trust professionals already
+            ask for in a human video-ident call — legitimate, not exotic.</p>
+          <span class="cite">Metaphysic / Biometric Update — profile view breaks live face-swap</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="limit">Simplified deliberately: an earlier version also matched the physical ID
+      card in-frame. Card detection failed in real venue light on the first phone test, so we cut
+      it — the head-turn signal alone was already validated and correct. Simpler and tested beats
+      sophisticated and unverified.</div>
+  </section>
+
+  <section>
+    <span class="eyebrow">Validation</span>
+    <h2 style="margin-top:6px">How we'd know it works</h2>
+    <p class="lede">Standard biometric anti-spoofing metrics, run against an attack kit built only
+      on our own consenting faces:</p>
+    <div class="stat-row">
+      <div class="stat"><div class="v">APCER</div><div class="k">Attack presentation classification
+        error — % of virtual-cam / replay / stand attacks that get through</div></div>
+      <div class="stat"><div class="v">BPCER</div><div class="k">Bona-fide presentation classification
+        error — % of genuine users wrongly stepped up or blocked</div></div>
+    </div>
+    <p class="lede" style="margin-top:14px">Attack species mirror CEN/TS 18099: virtual camera,
+      device/browser hooking, a phone on a stand. Every session — decision, per-signal scores,
+      device, no images — lands in an audit log queryable live at <span class="mono">GET /log</span>,
+      which is also the calibration tool for the thresholds below.</p>
+  </section>
+
+  <section>
+    <span class="eyebrow">Data flywheel</span>
+    <h2 style="margin-top:6px">What Swisscom's own data would train</h2>
+    <div class="flow">
+      <b>confirmed fraud / genuine cases</b><span class="arrow">→</span>
+      <b>audit log</b><span class="arrow">→</span>
+      <b>per-signal score distributions</b><span class="arrow">→</span>
+      <b>calibrated thresholds</b><span class="arrow">→</span>
+      <b>tighter fusion</b>
+    </div>
+    <p class="lede" style="margin-top:12px">Today's thresholds are hand-set from synthetic tests
+      and a handful of real runs. The log already stores exactly what's needed to replace them
+      with fitted ones: face/motion/light/profile scores against the actual decision, first-name
+      only, never an image, never a raw biometric trace.</p>
+  </section>
+
+  <div class="divider"></div>
+
+  <footer>
+    <div><span class="pill accent">Live demo</span> &nbsp; naïve app fooled → Proofprint blocks
+      the same attack → genuine user still passes in seconds.</div>
+    <div class="mono">github.com/thibaudbrg/facemask-swiss-week-hackathon</div>
+    <div>Swiss {ai} Weeks · Zurich · 24–25 Sep 2026</div>
+  </footer>
+</div>
