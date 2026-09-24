@@ -200,7 +200,13 @@
         <span><b>ID + profile turn</b><small>Hold your ID in your left hand, then turn to the side we pick. Face-swaps break at a full profile.</small></span>
         <input type="checkbox" id="killer" checked><span class="switch" aria-hidden="true"></span>
       </label>
+      <label class="toggle naive" for="tInject">
+        <span><b>Demo: live face mask (deepfake)</b><small>Attack. Your live selfie is masked with another face in real time before the server sees it.</small></span>
+        <input type="checkbox" id="tInject"><span class="switch" aria-hidden="true"></span>
+      </label>
     </div>
+    <video id="maskCam" muted playsinline autoplay hidden></video>
+    <canvas id="injectCanvas" hidden></canvas>
     <div class="grow"></div>
     <div class="stack">
       <button class="btn" id="begin">Begin verification</button>
@@ -355,6 +361,8 @@
   <div id="lightBar"><i></i></div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/delaunator@5.0.1/delaunator.min.js"></script>
+<script type="module" src="/web/facemask.js"></script>
 <script src="/web/light.js"></script>
 <script>
 const $ = id => document.getElementById(id);
@@ -367,6 +375,10 @@ const docOn    = () => $("tDoc").checked;
 const lightOn  = () => $("tLight").checked && !naiveOn();
 const motionOn = () => $("tMotion").checked && !naiveOn();
 const killerOn = () => $("killer").checked && !naiveOn();
+const injectOn = () => $("tInject").checked;
+// Warm up the mask model/source when the attack toggle is switched on, so the
+// first selfie doesn't stall while it downloads.
+$("tInject").addEventListener("change", () => { if ($("tInject").checked && window.FaceMask) window.FaceMask.ensureReady().catch(()=>{}); });
 $("tNaive").addEventListener("change", () => {
   ["tLight","tMotion","killer"].forEach(id => $(id).closest(".toggle").classList.toggle("dim", naiveOn()));
 });
@@ -513,10 +525,17 @@ async function phaseProfile(videoEl){
 }
 
 // ---- camera plumbing ----
-async function stopStream(){ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }
+// Attack path (demo toggle): a live in-browser face mask stands in for the
+// front camera (web/facemask.js). Runs on the phone — see that file.
+function stopInject(){ if (window.FaceMask) window.FaceMask.stop(); }
+async function injectedStream(){
+  if (!window.FaceMask) throw new Error("face mask module not loaded");
+  return await window.FaceMask.start();
+}
+async function stopStream(){ stopInject(); if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }
 async function startCamera(videoEl, facing, collectMeta){
   await stopStream();
-  stream = await navigator.mediaDevices.getUserMedia({
+  stream = (injectOn() && facing === "user") ? await injectedStream() : await navigator.mediaDevices.getUserMedia({
     audio:false,
     video:{ facingMode: facing, width:{ideal:1280}, height:{ideal:960}, frameRate:{ideal:30,max:30} }
   });
@@ -793,6 +812,7 @@ $("restart").onclick = () => {
   meta.frameIntervals=[]; meta.hasMotion=false; meta.frames=[]; meta.motion=[]; meta.events=[];
   meta.profile={enabled:false, side:null, frames:[]}; delete meta.light; burstFrames=[]; profileFrames=[]; lightFrames=[];
   $("lightFlash").hidden=true; document.documentElement.style.background="";
+  stopStream();
   setIdSide("front"); resetIdCapture(); $("docBox").hidden=true;
   ["phoneGlyph","profileArrow","liveProgress","shotToast","selfiePreview"].forEach(id=>$(id).hidden=true);
   $("selfieOverlay").hidden=false; $("selfieFeed").hidden=false;
