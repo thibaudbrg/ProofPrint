@@ -9,9 +9,9 @@
 
 ## 0. STATUS / LOG (update this after every change)
 
-**Last updated:** 2026-09-24 · by: Vasiliy's Claude session (branch `feat/motion-check`, PR open)
+**Last updated:** 2026-09-24 · by: Vasiliy's Claude session (branch `feat/profile-challenge`, PR open; `feat/motion-check` merged as #1)
 
-**⚠ Ownership note:** the `feat/motion-check` branch touches BOTH `server/` (check 4 +
+**⚠ Ownership note:** `feat/motion-check` (merged) and `feat/profile-challenge` touch BOTH `server/` (check 4 +
 fusion + naive mode) AND `web/` (3 s liveness burst on the selfie shutter) AND
 `contract/` (frames + motion keys, `motion` signal shape). One feature, one PR —
 review it together before merging.
@@ -27,11 +27,24 @@ review it together before merging.
 **Build progress (the 5 checks)**
 - [x] **Check 1 — Face match** (walking skeleton, Act 1). Robust to EXIF rotation + small document faces.
 - [x] **Check 3 — Capture integrity** (virtual-cam label, facingMode, no-motion; timing = info only).
-- [x] **Check 4 — Gyroscope ↔ video** ★ THE CORE. `server/motion_check.py` + burst in
-  `web/index.html`. Phase-correlation global flow vs devicemotion rotationRate, lag search
-  ±300 ms, energy-weighted |Pearson| over yaw/pitch. 12 synthetic tests green. **NOT yet
-  tested on a real phone** — see "Open TODO" #1. No MediaPipe needed (OpenCV only).
+- [x] **Check 4 — Gyroscope ↔ video** ★ THE CORE. `server/motion_check.py` v2:
+  **background-only** sparse flow (Shi-Tomasi + LK, face box masked via YuNet) vs devicemotion
+  rotationRate, lag search ±300 ms, energy-weighted |Pearson|; accelerometer recorded too;
+  **stationary-device test** (gyro AND acc flat → block, per arXiv 2605.00218). Head movement
+  with a still phone is now `insufficient` (step_up), NOT fail — that was the first phone
+  run's false block. No MediaPipe needed (OpenCV only).
 - [x] **Naive mode** for Act 2: `PROOFPRINT_MODE=naive ./dev.sh` → decides on `face` only.
+- [x] **Check 6 — ID next to face + profile turn** ★ THE KILLER FEATURE (branch
+  `feat/profile-challenge`, v2 after the first phone run). Toggle on the intro screen
+  ("Killer feature", default ON). ONE continuous capture on the selfie screen: tilt phase
+  (check 4, ends early once ~35° of rotation is banked, 1.5–4 s) → "hold your ID over one eye
+  and turn <side>" phase (2.8 s) with a combined face-circle + card-slot guide → auto-submit.
+  No confirm screens. `server/profile_check.py`: yaw from YuNet landmarks, side compliance
+  vs the server nonce (wrong side → block), **ORB match of the step-1 ID photo** in every
+  frame (same document, not just "a rectangle"), **occlusion**: card must cross the face and
+  its edge must survive inside the face box (a swap paints over it → `card_edge_erased_over_face`),
+  face↔card colour temperature, snap-back. 34 tests green. First phone run: side sign
+  confirmed, `peak_ok=0.17` on a modest turn; card contour detector scored 0 → replaced by ORB.
 - [ ] **Check 5 — Light pulse** (flash random colours, skin must reflect them).
 - [ ] **Check 2 — ID card MRZ** (optional; face extraction already works via check 1).
 - [ ] **Attack rig** (OBS + deepfake) → milestone M1 ("naïve app fooled").
@@ -39,16 +52,37 @@ review it together before merging.
 - [ ] **APCER/BPCER** evaluation run.
 
 **Open TODO / next actions**
-1. **Phone-test check 4** (iPhone + Android): run a genuine burst, read the server log line
-   `[motion_check] score=… lag=…`. Expect score > 0.6 and lag 0–150 ms. If real phones
-   score low, first suspects: axis mapping (`ry`=gamma↔horizontal flow), frame timestamps,
-   phone held too still (`gyro_rms_dps` < 8 → "insufficient"). Tune `SCORE_PASS`/`SCORE_REVIEW`
-   in `motion_check.py`.
-2. Calibrate face threshold on real ID-vs-selfie pairs (see `COSINE_MATCH`/`COSINE_LOW`).
-3. Set up the attack rig to lock M1 (naive mode now exists for it).
-4. Analyst dashboard: plot `signals.motion.series` (flow_x vs gyro_yaw, flow_y vs gyro_pitch).
+0. **Live now:** `https://jvc-fisheries-six-utc.trycloudflare.com` (Vasiliy's Mac, uvicorn
+   --reload on **:8010** + cloudflared; dies with that process — restart and update this line).
+1. **Calibrate on phones** (what "phone-test" means: the code is complete, the THRESHOLDS
+   were set on synthetic data — every real run either confirms them or moves them). Do 5
+   genuine runs (2 phones, venue light) and paste the two log lines per run here:
+   `[motion_check] verdict=… score=… gyro_rms=… acc_rms=… flow_rms=… method=…` — want
+   score > 0.6, `method=lk_background`, `face_masked=True`; if `insufficient` the user tilted
+   the head not the phone (the UI now nags + shows a tilting-phone icon).
+   `[profile_check] … peak_ok=… card_frac=… card_src=… occl_seen=… occl_q=…` — want
+   peak_ok ≥ 0.22 on a full turn (0.17 seen on a modest one), card_src mostly `orb`,
+   occl_seen True when the card really covers an eye. Knobs: `TURN_MIN/TURN_FULL`,
+   `ORB_MIN_MATCHES`, `OCCLUSION_MIN_OVERLAP`, `MIN_GYRO_RMS_DPS`.
+2. **Attack runs** (own faces only): still deepfake via OBS while waving the phone; screen
+   replay; phone on a stand (→ `stationary_device`). Record APCER/BPCER from 1 + 2.
+3. Calibrate face threshold on real ID-vs-selfie pairs (see `COSINE_MATCH`/`COSINE_LOW`).
+   First real pair scored 0.424 (match; band 0.363/0.28 holds so far).
+4. Analyst dashboard: plot `signals.motion.series` + `signals.profile.yaw_series`.
+5. Check 5 (light pulse) still open; the `challenge` colours are minted but unused.
 
 **Recent changes**
+- **v2 of checks 4 + 6 after the first phone run** (`feat/profile-challenge`): one
+  continuous capture, no confirm screens, ~5–7 s total after the ID; combined face + card
+  guide; tilt phase ends early on banked rotation; accelerometer + `events` in meta;
+  background-only flow with the face masked (head motion can no longer block a real user);
+  stationary-device rejection; ORB card matching against the step-1 ID; occlusion-edge
+  check (KnowBe4 ghosting signature); all early-return paths now log their numbers.
+- **Check 6 implemented** (`feat/profile-challenge`): "Killer feature" toggle on intro; the
+  session is now minted at **Begin** (was: at submit) so the phone knows `profile_side`;
+  Step 3 screen with mirrored arrow; `profile_frames` upload; `signals.profile` in the result;
+  fusion: profile `fail` → block, `review|insufficient|absent` (when enabled) → step_up.
+  Step counters now say "of 3" when the toggle is on.
 - **Check 4 implemented** (`feat/motion-check`): selfie shutter now records a 3 s burst
   ("slowly tilt the phone") of ~36 low-res frames + gyro samples, uploads them as repeated
   `frames` parts + `meta.frames/motion`; server correlates global image shift with
@@ -101,6 +135,7 @@ was physically live.
 | 3 · Capture integrity (virtual-cam, sensors) | mitigated | Partly (off-the-shelf tools) | ✅ |
 | 4 · **Gyroscope ↔ video** ★ | mitigated | **Yes** (the core) | ✅ code + synthetic tests · ⏳ phone calibration |
 | 5 · Light pulse (colour reflection) | mitigated | Mostly | ⏳ |
+| 6 · **ID next to face + profile turn** ★ | mitigated (toggle) | **Yes** — face-swaps warp at 90°, ghost on occlusion | ✅ code + tests · ⏳ phone calibration |
 
 **Deliberately NOT used:** iris (needs IR hardware), typing rhythm (no profile at
 first onboarding), mouse (no mouse on phone — its useful bit folds into check 3),
@@ -141,8 +176,9 @@ Full detail in `contract/contract.md`. Summary:
 3. `GET /session/{id}/result` → `{ decision, signals:{ face, integrity, ... } }`
    `decision ∈ pass | step_up | block | pending`.
 
-**Fusion rule (current):** virtual-cam label OR motion `fail` → block · face mismatch → block ·
-(face review OR any integrity flag OR motion `review|insufficient|absent`) → step_up · else pass.
+**Fusion rule (current):** virtual-cam label OR motion `fail` OR profile `fail` (wrong side) → block ·
+face mismatch → block · (face review OR any integrity flag OR motion `review|insufficient|absent`
+OR [toggle on AND profile `review|insufficient|absent`]) → step_up · else pass.
 In `PROOFPRINT_MODE=naive`: face match → pass, review → step_up, else block (liveness ignored).
 
 ---
@@ -161,6 +197,7 @@ server/               ← Person A
   face_match.py       ← check 1 (YuNet + SFace, rotation-robust)
   integrity_check.py  ← check 3
   motion_check.py     ← check 4 (gyro ↔ video, phase correlation + lag search)
+  profile_check.py    ← check 6 (ID + profile turn: yaw from YuNet landmarks, card, lighting)
   tests/              ← pytest: synthetic pan renderer + e2e via TestClient
   requirements.txt    ← pinned (OpenCV + numpy suffice for check 4; pytest + httpx for tests)
   models/             ← YuNet/SFace .onnx (gitignored, auto-download)
@@ -199,13 +236,26 @@ if missing. Camera needs HTTPS — that's why the tunnel exists.
   **CALIBRATE on real ID-vs-selfie pairs** (ID photos score lower — see DocFace+).
 - **EXIF rotation:** phone JPEGs come in sideways via `cv2.imdecode`; we try 4 rotations.
 - **Integrity timing:** weak/noisy → informational only, never blocks.
-- **Check 4 (built):** global image shift per frame pair via `cv2.phaseCorrelate` (160 px
-  grey, Hanning window) → px/s; gyro (`beta`→pitch↔vertical flow, `gamma`→yaw↔horizontal
+- **Check 4 (built, v2):** BACKGROUND shift per frame pair: Shi-Tomasi corners outside the
+  (grown) YuNet face box + Lucas-Kanade, median displacement → px/s; whole-frame
+  `cv2.phaseCorrelate` (face masked) as fallback on featureless backgrounds; gyro (`beta`→pitch↔vertical flow, `gamma`→yaw↔horizontal
   flow) interpolated to frame midpoints; |Pearson| per axis, energy-weighted, best over
   lags ±300 ms. Thresholds `SCORE_PASS=0.60`, `SCORE_REVIEW=0.35`, `MIN_GYRO_RMS_DPS=8`
   (from synthetic tests — calibrate on phones). Still video + moving phone → fail; moving
   video + still phone → fail; nothing moved → insufficient (step_up, "please tilt").
   Head-pose (MediaPipe) was NOT needed; revisit only if background-less scenes break flow.
+- **Check 6 (built, v2):** score = 0.45·turn + 0.20·card(ORB vs step-1 ID) + 0.20·occlusion-edge
+  + 0.15·lighting − 0.2·snap. Occlusion-edge = fraction of the card boundary INSIDE the face
+  box that is still a Canny edge (swap paints over the occluder → edge gone).
+  Yaw proxy = (nose_x − eye_mid_x) / face_w from YuNet's 5 landmarks
+  (frontal ≈ 0, ~45° ≈ 0.15; YuNet usually loses the face near 90°, which counts as "reached
+  profile" if the last frames trended the right way). `SIDE_SIGN={"left":+1,"right":-1}` for
+  RAW (unmirrored) front-camera frames — flip if a phone test disagrees. `TURN_MIN=0.12`,
+  `TURN_FULL=0.22`, score = 0.6·turn + 0.25·card_seen + 0.15·lighting − 0.2·snap;
+  `SCORE_PASS=0.55`, `SCORE_REVIEW=0.30`. Wrong side is a hard fail regardless of score.
+  Why this is the killer: DeepFaceLive-class tools map only 50–60 % of landmarks in profile
+  and warp at 90°; a card crossing the face ghosts at the mask edge; the side is a nonce so a
+  pre-recorded clip can't follow it; human video-ident agents already ask for exactly this.
 - **Check 5 (planned):** server mints random colour seq; skin ROI ÷ background;
   daylight → low SNR → step-up (not fail). Overlaps iProov patent → pitch as fusion.
 
@@ -218,6 +268,8 @@ if missing. Camera needs HTTPS — that's why the tunnel exists.
   so a sign flip between platforms can't break it; a unit mix-up only affects `gyro_rms_dps`.
 - iOS needs `DeviceMotionEvent.requestPermission()` inside a user tap; no brightness control.
 - cloudflared quick-tunnel URL changes if the process restarts.
+- **VS Code Live Share forwards a teammate's :8000 onto your own 127.0.0.1:8000.** If your
+  tunnel or curl shows the OLD app, that's why — run your uvicorn on another port (8010).
 - `pip install mediapipe` pulls a 2nd OpenCV — keep only one.
 - Attack only ever on OUR app, with CONSENTING teammate faces; delete synthetic media after.
 
@@ -226,7 +278,7 @@ if missing. Camera needs HTTPS — that's why the tunnel exists.
 ## 9. Milestones
 
 - **M1** — attack beats the naïve app (needs check 1 + attack rig; naive mode ✅). *← current target*
-- **M2** — Proofprint blocks the same attack, real user still passes (check 4 code ✅, phone calibration ⏳).
+- **M2** — Proofprint blocks the same attack, real user still passes (check 4 + 6 code ✅, phone calibration ⏳).
 - **M3** — numbers on the board (APCER/BPCER) + analyst replay dashboard.
 
 ---

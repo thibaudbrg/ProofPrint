@@ -80,3 +80,4 @@ build/
 !.claude/settings.json
 research_notes/
 reports/
+.certs/
