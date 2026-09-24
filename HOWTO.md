@@ -6,6 +6,7 @@ This is Act 1 of the demo, and the base every other check plugs into.
 ## Run it (about 5 minutes)
 
 ```bash
+brew install tesseract          # once — OCR engine for the ID's machine-readable zone (check 2)
 cd server
 python3 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt

@@ -11,3 +11,6 @@ numpy==2.1.3
 # Tests:  ./.venv/bin/python -m pytest tests -q   (from server/)
 pytest==8.3.4
 httpx==0.28.1
+
+# check 2 — MRZ reading (needs the Tesseract binary: `brew install tesseract`)
+passporteye==2.2.2

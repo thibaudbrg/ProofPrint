@@ -44,13 +44,24 @@
 
   /* camera viewport with official-app crop mask */
   .viewport{position:relative;width:100%;flex:1;min-height:0;border-radius:20px;overflow:hidden;background:#0c0c0d;margin:2px 0}
-  .viewport img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .viewport img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#0c0c0d}
   .viewport video{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none} /* source only */
   .feed{position:absolute;inset:0;width:100%;height:100%;display:block}
   .guide{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
          box-shadow:0 0 0 2000px rgba(12,12,13,.55);pointer-events:none}
-  .guide.card{width:86%;aspect-ratio:1.585;border-radius:14px;border:2px solid rgba(255,255,255,.95)}
+  .guide.card{width:86%;aspect-ratio:1.585;border-radius:14px;border:2px dashed rgba(255,255,255,.95)}
   .guide.circle{width:74%;aspect-ratio:1;border-radius:50%;border:2px solid rgba(255,255,255,.95)}
+  /* head+shoulders silhouette overlay (selfie) */
+  .overlay{position:absolute;inset:0;pointer-events:none}
+  .overlay svg{width:100%;height:100%;display:block}
+  .hint.warn{color:#FFD27A}
+  /* tap-to-focus ring */
+  .focus-ring{position:absolute;width:70px;height:70px;border:2px solid #fff;border-radius:50%;
+              transform:translate(-50%,-50%) scale(1.4);opacity:0;pointer-events:none;z-index:3;
+              box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+  .focus-ring.go{animation:focus .7s ease-out}
+  @keyframes focus{0%{opacity:0;transform:translate(-50%,-50%) scale(1.5)}25%{opacity:1}
+                   70%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(1)}}
   /* corner ticks for the card */
   .tick{position:absolute;width:22px;height:22px;border:0 solid #fff}
   .card .tick.tl{top:-2px;left:-2px;border-top-width:3px;border-left-width:3px;border-top-left-radius:14px}
@@ -75,6 +86,14 @@
   .result.block{background:var(--block-bg);color:var(--block)}
   .result .disc{width:66px;height:66px;border-radius:50%;background:#fff;display:grid;place-items:center}
   .meta{font-family:'Space Mono',monospace;font-size:11.5px;color:var(--ink-2);word-break:break-word}
+  /* document data card (check 2) */
+  .doc{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+  .doc-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
+  .doc-h b{font-size:14px}
+  .doc-row{display:flex;justify-content:space-between;gap:12px;font-size:14px;padding:6px 0;border-top:1px solid var(--line)}
+  .doc-row span:first-child{color:var(--ink-2)}
+  .doc-row .bad{color:var(--block);font-weight:600}.doc-row .good{color:var(--ok);font-weight:600}
+  .btn-link{background:none;color:var(--ink-2);text-decoration:underline;font-weight:500;font-size:14px;padding:6px}
 
   .spinner{width:46px;height:46px;border-radius:50%;border:4px solid var(--line);border-top-color:var(--accent);
            animation:spin 1s linear infinite;margin:8px auto}
@@ -144,16 +163,18 @@
   <!-- ID CAPTURE -->
   <section id="idScreen" class="screen stack" hidden>
     <div class="steps" id="idSteps"><i class="on"></i><i></i></div>
-    <div><span class="eyebrow" id="idStep">Step 1 of 2</span><h2 style="margin-top:5px">Photograph your document</h2>
-      <p style="margin-top:4px">Fit the card inside the frame. Avoid glare.</p></div>
-    <div class="viewport">
+    <div><span class="eyebrow" id="idStep">Step 1 of 2</span><h2 style="margin-top:5px" id="idTitle">Photograph your document</h2>
+      <p style="margin-top:4px" id="idSub">Fit the card inside the frame. Avoid glare.</p></div>
+    <div class="viewport" id="idView">
+      <div class="focus-ring" id="idRing"></div>
       <video id="idVideo" playsinline muted autoplay></video>
       <canvas id="idFeed" class="feed"></canvas>
       <img id="idShot" hidden alt="">
       <div class="guide card" id="idGuide"><span class="tick tl"></span><span class="tick tr"></span><span class="tick bl"></span><span class="tick br"></span></div>
       <div class="hint" id="idHint">Line up your ID and tap the button</div>
     </div>
-    <div id="idCapRow"><div class="shutter" id="idShutter" role="button" aria-label="Capture document"></div></div>
+    <div id="idCapRow"><div class="shutter" id="idShutter" role="button" aria-label="Capture document"></div>
+      <button class="btn-link" id="idSkipBack" hidden style="display:block;margin:6px auto 0">Skip — my document has no code lines (e.g. driving licence)</button></div>
     <div id="idConfirm" class="btn-row" hidden>
       <button class="btn-ghost" id="idRetake">Retake</button>
       <button class="btn" id="idUse">Use photo</button>
@@ -165,10 +186,17 @@
     <div class="steps" id="selfieSteps"><i class="on"></i><i class="on"></i></div>
     <div><span class="eyebrow" id="selfieStep">Step 2 of 2</span><h2 style="margin-top:5px" id="selfieTitle">Selfie &amp; live check</h2>
       <p style="margin-top:4px" id="selfieCopy">Face in the circle, tap once. Then tilt the <b>phone</b> — we take care of the rest.</p></div>
-    <div class="viewport">
+    <div class="viewport" id="selfieView">
+      <div class="focus-ring" id="selfieRing"></div>
       <video id="selfieVideo" playsinline muted autoplay></video>
       <canvas id="selfieFeed" class="feed"></canvas>
-      <div class="guide circle" id="selfieGuide"></div>
+      <div class="overlay" id="selfieOverlay">
+        <svg viewBox="0 0 300 400" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <defs><mask id="bustMask"><rect width="300" height="400" fill="#fff"></rect><path d="M118 208 C80 190 68 150 70 118 C72 74 108 38 150 38 C192 38 228 74 230 118 C232 150 220 190 182 208 L182 248 C216 258 256 278 274 318 C282 340 286 366 286 392 L14 392 C14 366 18 340 26 318 C44 278 84 258 118 248 L118 208 Z" fill="#000"></path></mask></defs>
+          <rect width="300" height="400" fill="rgba(12,12,13,.55)" mask="url(#bustMask)"></rect>
+          <path id="selfieGuide" d="M118 208 C80 190 68 150 70 118 C72 74 108 38 150 38 C192 38 228 74 230 118 C232 150 220 190 182 208 L182 248 C216 258 256 278 274 318 C282 340 286 366 286 392 L14 392 C14 366 18 340 26 318 C44 278 84 258 118 248 L118 208 Z" fill="none" stroke="#fff" stroke-width="2.5" stroke-dasharray="7 6" stroke-linejoin="round"></path>
+        </svg>
+      </div>
       <!-- combined guide for the ID + profile phase: card overlapping one eye -->
       <div class="guide cardslot" id="cardSlot" hidden><span class="tick tl"></span><span class="tick tr"></span><span class="tick bl"></span><span class="tick br"></span></div>
       <div class="phone-tilt" id="tiltIcon" hidden aria-hidden="true">📱</div>
@@ -197,6 +225,7 @@
         <div class="big" id="resultTitle"></div>
         <p id="resultSub" style="color:inherit;opacity:.85"></p>
       </div>
+      <div class="doc" id="docBox" hidden><div class="doc-h"><span class="eyebrow">Document</span><b id="docType"></b></div><div id="docRows"></div></div>
       <p class="meta" id="resultMeta"></p>
     </div>
     <button class="btn-ghost" id="restart">Start over</button>
@@ -208,7 +237,8 @@ const $ = id => document.getElementById(id);
 const screens = ["intro","idScreen","selfieScreen","checking","resultScreen"];
 function show(id){ screens.forEach(s => $(s).hidden = (s!==id)); }
 
-let stream = null, idBlob = null, selfieBlob = null;
+let stream = null, idBlob = null, idBackBlob = null, idFrontUrl = null, selfieBlob = null;
+let idSide = "front";   // the ID screen is reused for the back of the card
 const meta = { label:"", settings:{}, hasMotion:false,
                claimsMobile:/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent), frameIntervals:[],
                frames:[], motion:[], events:[] };
@@ -300,6 +330,84 @@ async function liveCapture(videoEl){
   recordingMotion = false; slot.hidden = true; arrow.hidden = true; bar.hidden = true;
 }
 
+async function stopStream(){ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }
+async function startCamera(videoEl, facing, collectMeta){
+  await stopStream();
+  stream = await navigator.mediaDevices.getUserMedia({
+    audio:false,
+    video:{ facingMode: facing, width:{ideal:1280}, height:{ideal:960}, frameRate:{ideal:30,max:30} }
+  });
+  videoEl.srcObject = stream;
+  // mise au point: continuous autofocus where the browser allows it (Android Chrome); iOS ignores this
+  try { await stream.getVideoTracks()[0].applyConstraints({ advanced:[{ focusMode:"continuous" }] }); } catch(_){}
+  if(collectMeta){
+    const t = stream.getVideoTracks()[0];
+    meta.label = t.label || "";
+    meta.settings = t.getSettings ? t.getSettings() : {};
+    frameCount = 0; lastT = 0;
+    const onF = now => { if(lastT) meta.frameIntervals.push(now-lastT); lastT=now;
+                         if(++frameCount < 45 && videoEl.requestVideoFrameCallback) videoEl.requestVideoFrameCallback(onF); };
+    if(videoEl.requestVideoFrameCallback) videoEl.requestVideoFrameCallback(onF);
+  }
+}
+
+// blur check: variance of the Laplacian on a 200px grey copy (sharp 100+, blurred <35). Warns only.
+const BLUR_THRESH = 35;
+function sharpness(canvas){
+  const w=200, h=Math.max(2,Math.round(canvas.height*200/canvas.width));
+  const t=document.createElement("canvas"); t.width=w; t.height=h;
+  const x=t.getContext("2d"); x.drawImage(canvas,0,0,w,h);
+  const d=x.getImageData(0,0,w,h).data, g=new Float32Array(w*h);
+  for(let i=0,j=0;i<d.length;i+=4,j++) g[j]=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
+  let sum=0,sum2=0,n=0;
+  for(let y=1;y<h-1;y++) for(let xx=1;xx<w-1;xx++){
+    const k=y*w+xx, l=4*g[k]-g[k-1]-g[k+1]-g[k-w]-g[k+w]; sum+=l; sum2+=l*l; n++; }
+  const m=sum/n; return sum2/n - m*m;
+}
+function blurHint(el, sharp){
+  el.hidden = false;
+  if (sharp < BLUR_THRESH){ el.className="hint warn"; el.textContent=`Looks blurry (sharpness ${sharp.toFixed(0)}) — hold still and retake`; }
+  else { el.className="hint"; el.textContent=`Sharp (${sharp.toFixed(0)}) — looks good`; }
+}
+const HINT_ID="Line up your ID and tap the button", HINT_ID_BACK="Line up the back — the «<<<» lines — and tap";
+function resetIdCapture(){
+  $("idShot").hidden=true; $("idGuide").hidden=false; $("idFeed").hidden=false;
+  startFeed($("idVideo"), $("idFeed"), false);
+  $("idHint").hidden=false; $("idHint").className="hint";
+  $("idHint").textContent = idSide==="front" ? HINT_ID : HINT_ID_BACK;
+  $("idConfirm").hidden=true; $("idCapRow").hidden=false;
+  $("idSkipBack").hidden = idSide!=="back";
+}
+function setIdSide(side){
+  idSide = side;
+  if (side==="front"){ $("idTitle").textContent="Photograph your document"; $("idSub").textContent="Fit the card inside the frame. Avoid glare."; }
+  else { $("idTitle").textContent="Now the back of the card"; $("idSub").textContent="The two or three lines of «<<<» code. Skip if your document has none."; }
+}
+async function goSelfie(){
+  show("selfieScreen");
+  try { await startCamera($("selfieVideo"), "user", true); startFeed($("selfieVideo"), $("selfieFeed"), true); }
+  catch(e){ $("selfieHint").textContent = "Camera error: " + e.message; }
+}
+// Tap the live view to (re)focus there. Android accepts a point of interest; iOS shows the ring only.
+function attachTapFocus(viewEl, videoEl, canvasEl, ringEl){
+  viewEl.addEventListener("pointerdown", async ev => {
+    if (canvasEl.hidden || recordingMotion) return;      // not live, or mid-capture
+    const r = viewEl.getBoundingClientRect();
+    const x = ev.clientX - r.left, y = ev.clientY - r.top;
+    ringEl.style.left = x+"px"; ringEl.style.top = y+"px";
+    ringEl.classList.remove("go"); void ringEl.offsetWidth; ringEl.classList.add("go");
+    const g = canvasEl._geo, track = stream && stream.getVideoTracks()[0];
+    if (!g || !track) return;
+    let px = x*g.dpr, py = y*g.dpr; if (g.mirror) px = g.cw - px;
+    const nx = Math.min(1,Math.max(0,(px-g.dx)/g.s/videoEl.videoWidth));
+    const ny = Math.min(1,Math.max(0,(py-g.dy)/g.s/videoEl.videoHeight));
+    try {
+      await track.applyConstraints({ advanced:[{ pointsOfInterest:[{x:nx,y:ny}], focusMode:"single-shot" }] });
+      setTimeout(()=>track.applyConstraints({ advanced:[{ focusMode:"continuous" }] }).catch(()=>{}), 1500);
+    } catch(_) {}
+  });
+}
+
 // Draw the camera into a canvas with our OWN cover geometry, so display and crop
 // share exact coordinates on every device (iOS object-fit on <video> is unreliable).
 let feedRaf = null;
@@ -339,7 +447,8 @@ function cropToGuide(videoEl, canvasEl, guideEl, capLong=1200){
   const cw=Math.round(sw*k), ch=Math.round(sh*k);
   const c=document.createElement("canvas"); c.width=cw; c.height=ch;
   c.getContext("2d").drawImage(videoEl, sx,sy,sw,sh, 0,0,cw,ch);   // raw pixels, full res
-  return new Promise(res => c.toBlob(b=>res({blob:b, url:c.toDataURL("image/jpeg",0.9)}), "image/jpeg", 0.9));
+  const sharp = sharpness(c);
+  return new Promise(res => c.toBlob(b=>res({blob:b, url:c.toDataURL("image/jpeg",0.9), sharp}), "image/jpeg", 0.9));
 }
 
 // ---- INTRO ----
@@ -364,20 +473,18 @@ $("begin").onclick = async () => {
 
 // ---- ID CAPTURE ----
 $("idShutter").onclick = async () => {
-  const out = await cropToGuide($("idVideo"), $("idFeed"), $("idGuide")); if(!out) return; const {blob,url}=out; stopFeed();
-  idBlob = blob; $("idShot").src = url; $("idShot").hidden=false;
-  $("idFeed").hidden=true; $("idHint").hidden=true;
+  const out = await cropToGuide($("idVideo"), $("idFeed"), $("idGuide")); if(!out) return; const {blob,url,sharp}=out; stopFeed();
+  if (idSide==="front"){ idBlob = blob; idFrontUrl = url; } else { idBackBlob = blob; }
+  $("idShot").src = url; $("idShot").hidden=false; $("idGuide").hidden=true; $("idSkipBack").hidden=true;
+  $("idFeed").hidden=true; blurHint($("idHint"), sharp);
   $("idCapRow").hidden=true; $("idConfirm").hidden=false;
 };
-$("idRetake").onclick = () => {
-  $("idShot").hidden=true; $("idFeed").hidden=false; startFeed($("idVideo"), $("idFeed"), false); $("idHint").hidden=false;
-  $("idConfirm").hidden=true; $("idCapRow").hidden=false;
-};
+$("idRetake").onclick = resetIdCapture;
 $("idUse").onclick = async () => {
-  show("selfieScreen");
-  try { await startCamera($("selfieVideo"), "user", true); startFeed($("selfieVideo"), $("selfieFeed"), true); }
-  catch(e){ $("selfieHint").textContent = "Camera error: " + e.message; }
+  if (idSide==="front"){ setIdSide("back"); resetIdCapture(); return; }   // same rear camera, now the back
+  goSelfie();
 };
+$("idSkipBack").onclick = () => { idBackBlob = null; goSelfie(); };
 
 // ---- SELFIE + LIVE CHECK (one tap) ----
 $("selfieShutter").onclick = async () => {
@@ -394,18 +501,41 @@ $("selfieShutter").onclick = async () => {
 // ---- SUBMIT ----
 async function submit(){
   show("checking");
-  $("rIdThumb").src = $("idShot").src; $("rSelfieThumb").src = $("selfieShot").src;
+  $("rIdThumb").src = idFrontUrl || $("idShot").src; $("rSelfieThumb").src = $("selfieShot").src;
   try {
     const s = session || await fetch("/session",{method:"POST"}).then(r=>r.json());
     const fd = new FormData();
     for(const f of profileFrames) fd.append("profile_frames", f.blob, f.name);
     fd.append("id_photo", idBlob, "id.jpg");
     fd.append("selfie", selfieBlob, "selfie.jpg");
+    if (idBackBlob) fd.append("id_back", idBackBlob, "id_back.jpg");
     for(const f of burstFrames) fd.append("frames", f.blob, f.name);
     fd.append("meta", JSON.stringify(meta));
     const res = await fetch(`/session/${s.session_id}/capture`,{method:"POST",body:fd}).then(r=>r.json());
     render(res);
   } catch(e){ render({decision:"block", signals:{face:{reason:"network error: "+e.message}, integrity:{ok:true,flags:[]}, motion:{}}}); }
+}
+
+function renderDoc(id){
+  const box = $("docBox"); if(!id){ box.hidden=true; return; }
+  if (id.portrait_thumb) $("rIdThumb").src = id.portrait_thumb;      // the portrait we actually matched
+  const label = {passport:"Passport", id_card:"ID / residence card", no_mrz:"No machine-readable zone"}[id.doc_type] || id.doc_type;
+  $("docType").textContent = label;
+  const rows = [], m = id.mrz;
+  if (m){
+    const name = [m.surname, m.names].filter(Boolean).join(" ");
+    if (name) rows.push(["Name", name]);
+    if (m.birth_date) rows.push(["Date of birth", m.birth_date]);
+    if (m.expiry_date) rows.push(["Valid until", m.expired ? `<span class="bad">${m.expiry_date} · expired</span>` : m.expiry_date]);
+    if (m.number) rows.push(["Document no.", m.number]);
+    const c = m.checks || {}; const allOk = Object.values(c).every(v => v!==false);
+    rows.push(["Check digits", allOk ? '<span class="good">valid</span>' : '<span class="bad">mismatch</span>']);
+  } else {
+    rows.push(["Data", id.doc_type==="no_mrz" ? "none read — driving licence, or back not captured" : "—"]);
+  }
+  rows.push(["Portrait", id.portrait_found ? '<span class="good">found</span>' : '<span class="bad">not found</span>']);
+  $("docRows").innerHTML = rows.map(([k,v]) => `<div class="doc-row"><span>${k}</span><span>${v}</span></div>`).join("");
+  box.hidden = false;
 }
 
 function render(res){
@@ -420,6 +550,7 @@ function render(res){
     res.decision==="pass"  ? `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4 10-11"/></svg>`
   : res.decision==="step_up" ? `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="2.6" stroke-linecap="round"><path d="M12 7v7"/><circle cx="12" cy="18" r="0.6" fill="${col}"/></svg>`
   : `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="2.6" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg>`;
+  renderDoc(res.signals.id);
   const igtxt = ig.ok ? "clean" : "flags: "+(ig.flags||[]).join(", ");
   const dbg = f.debug ? ` · ID ${f.debug.id_face} / selfie ${f.debug.selfie_face}` : "";
   const motxt = mo.verdict ? `${mo.score ?? "-"} (${mo.verdict}${mo.lag_ms!=null?`, lag ${mo.lag_ms}ms`:""}${mo.reason?`, ${mo.reason}`:""})` : "-";
@@ -428,15 +559,17 @@ function render(res){
   $("resultMeta").textContent = `face ${f.score ?? "-"} (${f.verdict||f.reason||""}) · integrity ${igtxt} · motion ${motxt} · profile ${prtxt}${res.mode==="naive"?" · NAIVE MODE":""}${dbg}`;
   show("resultScreen");
 }
-$("restart").onclick = () => { idBlob=selfieBlob=null; meta.frameIntervals=[]; meta.hasMotion=false;
+$("restart").onclick = () => { idBlob=idBackBlob=selfieBlob=null; idFrontUrl=null; meta.frameIntervals=[]; meta.hasMotion=false;
   session=null; burstFrames=[]; profileFrames=[]; meta.frames=[]; meta.motion=[]; meta.events=[];
   meta.profile={enabled:false, side:null, frames:[]}; selfieBlob=null;
   $("selfieHint").textContent="Center your face and tap the button"; $("selfieCapRow").hidden=false;
   ["cardSlot","tiltIcon","profileArrow","liveProgress"].forEach(id=>$(id).hidden=true);
   burstFrames=[]; meta.frames=[]; meta.motion=[]; $("selfieHint").textContent = "Center your face and tap the button";
-  $("idShot").hidden=true; $("idFeed").hidden=false; startFeed($("idVideo"), $("idFeed"), false); $("idHint").hidden=false; $("idConfirm").hidden=true; $("idCapRow").hidden=false;
-  $("selfieFeed").hidden=false; $("selfieHint").hidden=false;
+  setIdSide("front"); resetIdCapture(); $("docBox").hidden=true;
+  $("selfieFeed").hidden=false; $("selfieHint").hidden=false; $("selfieOverlay").hidden=false;
   show("intro"); };
+attachTapFocus($("idView"), $("idVideo"), $("idFeed"), $("idRing"));
+attachTapFocus($("selfieView"), $("selfieVideo"), $("selfieFeed"), $("selfieRing"));
 </script>
 </body>
 </html>
