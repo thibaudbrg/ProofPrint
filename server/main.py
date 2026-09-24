@@ -20,7 +20,9 @@ from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 import os
 
+import audit_log
 import face_match
+import id_check
 import integrity_check
 import motion_check
 import profile_check
@@ -59,10 +61,11 @@ def start_session():
 async def capture(sid: str,
                   id_photo: UploadFile = File(...),
                   selfie: UploadFile = File(...),
+                  id_back: UploadFile | None = File(None),
                   meta: str = Form(None),
                   frames: list[UploadFile] = File(default=[]),
                   profile_frames: list[UploadFile] = File(default=[])):
-    """Receive the ID photo + selfie (+ liveness burst frames + metadata), score, decide."""
+    """Receive the document photo(s) + selfie (+ liveness bursts + metadata), score, decide."""
     if sid not in SESSIONS:
         raise HTTPException(404, "unknown session")
 
@@ -70,9 +73,12 @@ async def capture(sid: str,
     self_img = face_match.imdecode(await selfie.read())
     if id_img is None or self_img is None:
         raise HTTPException(400, "could not decode an image")
+    back_img = face_match.imdecode(await id_back.read()) if id_back is not None else None
 
-    # Check 1 — identity
-    face = face_match.match(id_img, self_img)
+    # Check 2 — document: straighten, extract the portrait, read the MRZ (optional back)
+    idsig, portrait = id_check.check(id_img, back_img)
+    # Check 1 — identity: match the selfie against the document PORTRAIT (falls back to the card)
+    face = face_match.match(portrait if portrait is not None else id_img, self_img)
     # Check 3 — capture integrity
     try:
         meta_obj = json.loads(meta) if meta else {}
@@ -115,20 +121,28 @@ async def capture(sid: str,
         decision = {"match": "pass", "review": "step_up"}.get(face.get("verdict"), "block")
     elif integ["hard"] or motion["verdict"] == "fail" or prof_v == "fail":
         decision = "block"
-    elif face.get("verdict") == "mismatch":
-        decision = "block"
-    elif (face.get("verdict") == "review" or not integ["ok"]
+    elif face.get("verdict") in (None, "mismatch"):
+        decision = "block"                   # wrong person, or no usable face at all
+    elif (face.get("verdict") == "review" or not integ["ok"] or idsig["flags"]
           or motion["verdict"] in ("review", "insufficient", "absent")
           or (prof_enabled and prof_v in ("review", "insufficient", "absent"))):
-        decision = "step_up"
+        decision = "step_up"                 # doubtful identity, document, capture or liveness
     else:
         decision = "pass"
 
     result = {"decision": decision, "mode": "naive" if NAIVE else "full",
-              "signals": {"face": face, "integrity": integ, "motion": motion,
-                          "profile": profile}}
+              "signals": {"face": face, "id": idsig, "integrity": integ,
+                          "motion": motion, "profile": profile}}
     SESSIONS[sid]["result"] = result
+    audit_log.record(sid, result, meta_obj)      # scores + first name only, never images
     return result
+
+
+@app.get("/log")
+def log(limit: int = 50):
+    """Recent scored sessions (newest first) + face-score spread per decision.
+    Internal / analyst use: threshold calibration and the replay dashboard."""
+    return {"stats": audit_log.stats(), "rows": audit_log.recent(limit)}
 
 
 @app.get("/session/{sid}/result")

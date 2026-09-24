@@ -9,7 +9,9 @@
 
 ## 0. STATUS / LOG (update this after every change)
 
-**Last updated:** 2026-09-24 · by: Vasiliy's Claude session (branch `feat/profile-challenge`, PR open; `feat/motion-check` merged as #1)
+**Last updated:** 2026-09-24 (evening) · by: Tibo's Claude session — PR #2 merged into `main`
+(`b5d1678`), then check 2 + audit log re-applied on top. **Note:** PR #2's rewrite had deleted
+`startCamera()`/`stopStream()` from `web/index.html` while still calling them (Begin threw) — restored.
 
 **⚠ Ownership note:** `feat/motion-check` (merged) and `feat/profile-challenge` touch BOTH `server/` (check 4 +
 fusion + naive mode) AND `web/` (3 s liveness burst on the selfie shutter) AND
@@ -46,7 +48,13 @@ review it together before merging.
   face↔card colour temperature, snap-back. 34 tests green. First phone run: side sign
   confirmed, `peak_ok=0.17` on a modest turn; card contour detector scored 0 → replaced by ORB.
 - [ ] **Check 5 — Light pulse** (flash random colours, skin must reflect them).
-- [ ] **Check 2 — ID card MRZ** (optional; face extraction already works via check 1).
+- [x] **Check 2 — ID document** (`id_check.py`): de-skew → portrait crop (now what check 1 matches
+  against) → MRZ via PassportEye + Tesseract with ICAO 9303 check digits **recomputed**, expiry
+  check → optional back-of-card capture (Skip for licences) → document card on the result screen.
+  Flags (`document_expired`, `mrz_checksum_failed`) only ever raise to step-up. No MRZ = fine.
+- [x] **Audit log** (`audit_log.py`, SQLite `server/data/proofprint.db`, gitignored): one row per
+  scored capture — date, decision, face/motion scores, doc type, flags, phone/desktop, camera
+  label, git SHA. **First given name only**, no other personal data, no images. `GET /log`.
 - [ ] **Attack rig** (OBS + deepfake) → milestone M1 ("naïve app fooled").
 - [ ] **Analyst dashboard** (two motion curves overlaid — the money shot).
 - [ ] **APCER/BPCER** evaluation run.
@@ -67,11 +75,19 @@ review it together before merging.
 2. **Attack runs** (own faces only): still deepfake via OBS while waving the phone; screen
    replay; phone on a stand (→ `stationary_device`). Record APCER/BPCER from 1 + 2.
 3. Calibrate face threshold on real ID-vs-selfie pairs (see `COSINE_MATCH`/`COSINE_LOW`).
-   First real pair scored 0.424 (match; band 0.363/0.28 holds so far).
+   First real pair scored 0.424 (match; band 0.363/0.28 holds so far). Check 1 now matches the
+   cropped PORTRAIT, so re-measure; use `GET /log` → `stats` (min/avg/max per decision).
+3b. Phone-test check 2 on a real back-of-card: does the MRZ read? (`[id_check]` server log line.)
+3c. ⚠ `swisscom-research/` is MISSING from disk (deleted?) — §5 pointers are dead. Restore or drop.
 4. Analyst dashboard: plot `signals.motion.series` + `signals.profile.yaw_series`.
 5. Check 5 (light pulse) still open; the `challenge` colours are minted but unused.
 
 **Recent changes**
+- **PR #2 merged** (checks 4 v2 + 6). Reconciled on top of it: check 2, audit log, and the
+  front-end polish (silhouette guide, dashed card frame, tap-to-focus, blur check, ID back-of-card
+  step, document card, `object-fit:contain` preview). **Fix:** restored `startCamera`/`stopStream`
+  (deleted by the v2 rewrite; Begin threw a ReferenceError). Fusion: no usable face → `block`
+  (was falling through); `id.flags` → step_up. 34 tests still green.
 - **v2 of checks 4 + 6 after the first phone run** (`feat/profile-challenge`): one
   continuous capture, no confirm screens, ~5–7 s total after the ID; combined face + card
   guide; tilt phase ends early on banked rotation; accelerometer + `events` in meta;
@@ -131,7 +147,7 @@ was physically live.
 | Check | App | Stops a deepfake? | Status |
 |---|---|---|---|
 | 1 · Face match (selfie vs ID) | both | No — it's the identity anchor | ✅ |
-| 2 · ID card (face + optional MRZ) | both | No | face part ✅ / MRZ ⏳ |
+| 2 · ID document (de-skew, portrait, MRZ + check digits, expiry) | both | No | ✅ |
 | 3 · Capture integrity (virtual-cam, sensors) | mitigated | Partly (off-the-shelf tools) | ✅ |
 | 4 · **Gyroscope ↔ video** ★ | mitigated | **Yes** (the core) | ✅ code + synthetic tests · ⏳ phone calibration |
 | 5 · Light pulse (colour reflection) | mitigated | Mostly | ⏳ |
@@ -170,15 +186,17 @@ captures and displays.
 Full detail in `contract/contract.md`. Summary:
 
 1. `POST /session` → `{ session_id, challenge:[colours], segment_ms }`
-2. `POST /session/{id}/capture` (multipart) → parts `id_photo`, `selfie`, and a
+2. `POST /session/{id}/capture` (multipart) → parts `id_photo` (front), `selfie`, optional
+   `id_back` (TD1 cards carry the MRZ on the back), repeated `frames` + `profile_frames`, and a
    `meta` JSON string: `{ label, settings{facingMode,...}, hasMotion, claimsMobile,
-   frameIntervals[] }`. (Checks 4/5 will add `frames[]`, `motion[]`, `colour[]`.)
-3. `GET /session/{id}/result` → `{ decision, signals:{ face, integrity, ... } }`
-   `decision ∈ pass | step_up | block | pending`.
+   frameIntervals[], frames[], motion[], events[], profile{} }`.
+3. `GET /session/{id}/result` → `{ decision, mode, signals:{ face, id, integrity, motion, profile } }`
+   `decision ∈ pass | step_up | block | pending`. Also `GET /log` (audit rows + score stats).
 
 **Fusion rule (current):** virtual-cam label OR motion `fail` OR profile `fail` (wrong side) → block ·
-face mismatch → block · (face review OR any integrity flag OR motion `review|insufficient|absent`
-OR [toggle on AND profile `review|insufficient|absent`]) → step_up · else pass.
+face mismatch OR **no usable face** → block · (face review OR any integrity flag OR any `id` flag
+OR motion `review|insufficient|absent` OR [toggle on AND profile `review|insufficient|absent`])
+→ step_up · else pass. Check 1 matches against the document PORTRAIT cut out by check 2.
 In `PROOFPRINT_MODE=naive`: face match → pass, review → step_up, else block (liveness ignored).
 
 ---
@@ -195,9 +213,12 @@ contract/contract.md  ← the 3 JSON shapes (shared — change together)
 server/               ← Person A
   main.py             ← the 3 routes + fusion
   face_match.py       ← check 1 (YuNet + SFace, rotation-robust)
+  id_check.py         ← check 2 (deskew, portrait, MRZ + ICAO check digits, expiry)
   integrity_check.py  ← check 3
-  motion_check.py     ← check 4 (gyro ↔ video, phase correlation + lag search)
+  motion_check.py     ← check 4 (gyro ↔ video, background flow + lag search)
   profile_check.py    ← check 6 (ID + profile turn: yaw from YuNet landmarks, card, lighting)
+  audit_log.py        ← SQLite log of scores per session (first name only) + GET /log
+  data/               ← proofprint.db lives here (gitignored)
   tests/              ← pytest: synthetic pan renderer + e2e via TestClient
   requirements.txt    ← pinned (OpenCV + numpy suffice for check 4; pytest + httpx for tests)
   models/             ← YuNet/SFace .onnx (gitignored, auto-download)
@@ -275,11 +296,19 @@ if missing. Camera needs HTTPS — that's why the tunnel exists.
 
 ---
 
-## 9. Milestones
+## 9. Milestones — the log (update the Status column as things land)
 
-- **M1** — attack beats the naïve app (needs check 1 + attack rig; naive mode ✅). *← current target*
-- **M2** — Proofprint blocks the same attack, real user still passes (check 4 + 6 code ✅, phone calibration ⏳).
-- **M3** — numbers on the board (APCER/BPCER) + analyst replay dashboard.
+| # | Milestone | Definition of done | Status |
+|---|---|---|---|
+| **M0** | Walking skeleton | Phone → HTTPS → server face-match → decision shown, on a real phone. | ✅ 24 Sep |
+| **M0.5** | Front end + document read + integrity | Card crop, silhouette guide, tap-focus, blur check, phone layout. Check 2 (portrait, de-skew, MRZ + check digits, back-of-card). Check 3. Audit log. | ✅ 24 Sep |
+| **M1** | Attack beats the naïve app | A deepfake through a virtual camera gets `pass` from `PROOFPRINT_MODE=naive`. This is Act 2. | ⏳ **next** — naive mode ✅, attack rig ⏳ |
+| **M2** | Proofprint blocks the same attack | Checks 4 + 6 live and fused (code ✅ merged as PR #1/#2); identical attack → `step_up`/`block`; real user still passes. This is Act 3. | ⏳ phone calibration |
+| **M3** | Numbers on the board | APCER / BPCER table from recorded genuine + attack sessions (`GET /log` feeds it), plus the analyst replay (motion curves overlaid). | ⏳ |
+| M4 | Light pulse (check 5) fused | Random colour challenge reflected on skin; low SNR → step-up. | ⏳ optional if time |
+
+**How to close a milestone:** tick it here with the date, add a line under *Recent changes*,
+and make sure the demo script still runs end to end on the phone.
 
 ---
 

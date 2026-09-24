@@ -14,7 +14,9 @@ The phone must call `/session` at **Begin** (not at submit) so it knows the side
 server judges against its own stored copy, never the value the client echoes back.
 
 ## 2. POST /session/{id}/capture  → phone uploads the bundle (multipart/form-data)
-Skeleton parts: `id_photo` (JPEG), `selfie` (JPEG), `meta` (JSON string).
+Skeleton parts: `id_photo` (JPEG, front of the document), `selfie` (JPEG), `meta` (JSON string).
+Check 2 adds `id_back` (JPEG, OPTIONAL — the back of a TD1 card, where the MRZ lives; omitted
+for passports and driving licences).
 Mitigated app adds (check 4, **implemented**): repeated `frames` parts (JPEG, ~320 px
 wide, ~12 fps for 3 s, filename `0001.jpg`…) and these keys inside `meta`:
 ```json
@@ -48,6 +50,14 @@ by filename. `colour` is reserved for check 5.
   "mode": "full",
   "signals": {
     "face":      { "ok": true, "score": 0.71, "verdict": "match" },
+    "id":        { "ok": true, "portrait_found": true, "deskewed": false,
+                   "doc_type": "id_card",                 // passport | id_card | no_mrz
+                   "mrz": { "format": "TD1", "surname": "BOURGEOIS", "names": "THIBAUD RENE",
+                            "birth_date": "2002-01-05", "expiry_date": "2026-10-31", "expired": false,
+                            "number": "…", "checks": { "number": true, "birth_date": true, "expiry_date": true },
+                            "ocr_confidence": 0.9 },     // null when no MRZ was read
+                   "flags": [],                           // document_expired | mrz_checksum_failed
+                   "portrait_thumb": "data:image/jpeg;base64,…" },
     "motion":    { "ok": true, "score": 0.87, "verdict": "pass", "lag_ms": 40,
                    "r_yaw": 0.9, "r_pitch": 0.7, "gyro_rms_dps": 35.2, "flow_rms_pxs": 120.0,
                    "acc_rms_ms2": 0.41, "flow_method": "lk_background", "face_masked": true, "flags": [],
@@ -71,6 +81,10 @@ alone is masked out and yields `insufficient` ("tilt the phone, not your head").
 `card_edge_erased_over_face` (the swap painted over the occluder), `yaw_snap`. `insufficient` = no turn / no face (→ step_up). When the
 toggle is off the signal is `{ "enabled": false, "verdict": "absent", "ok": true }` and
 does not affect the decision.
+`id` (check 2): check 1 matches the selfie against the document **portrait** cut out here
+(falls back to the whole card). `id.flags` only ever raise to step_up. Also
+`GET /log?limit=50` (internal): recent scored sessions + face-score min/avg/max per decision,
+first given name only — for threshold calibration.
 `decision` ∈ `pass | step_up | block | pending`. `mode` ∈ `full | naive`
 (`PROOFPRINT_MODE=naive` = the broken app: decides on `face` only).
 `motion.verdict` ∈ `pass | review | fail | insufficient | absent`; `series` holds the

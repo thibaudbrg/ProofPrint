@@ -19,7 +19,11 @@ server/models/*.bin
 !server/models/.gitkeep
 
 # ---------- Captured data — NEVER commit biometric material ----------
-# ID photos, selfies, frames, motion traces, session dumps, test datasets
+# ID photos, selfies, frames, motion traces, session dumps, test datasets, the audit DB
+*.db
+*.db-wal
+*.db-shm
+*.sqlite*
 data/
 samples/
 sessions/
