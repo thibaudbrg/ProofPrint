@@ -1,0 +1,82 @@
+# ---------- Python ----------
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.log
+
+# ---------- ML models (auto-downloaded, large) ----------
+server/models/*.onnx
+server/models/*.tflite
+server/models/*.task
+server/models/*.pt
+server/models/*.bin
+!server/models/.gitkeep
+
+# ---------- Captured data — NEVER commit biometric material ----------
+# ID photos, selfies, frames, motion traces, session dumps, test datasets
+data/
+samples/
+sessions/
+uploads/
+captures/
+server/data/
+server/sessions/
+*.jpg
+*.jpeg
+*.png
+*.heic
+*.mp4
+*.mov
+*.webm
+# allow small design/static images that ARE part of the app
+!web/**/*.svg
+!web/assets/**
+
+# ---------- Secrets / local config ----------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+config.local.*
+secrets*
+
+# ---------- Node / web tooling (if Vite is added) ----------
+node_modules/
+web/dist/
+web/.vite/
+*.local
+
+# ---------- OS / editor junk ----------
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+.idea/
+*.swp
+*.swo
+*~
+# keep the shared VS Code recommendations, drop personal state
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# ---------- Build / packaging artefacts ----------
+*.zip
+*.tar.gz
+dist/
+build/
+
+# ---------- Claude / tooling scratch ----------
+.claude/*
+!.claude/settings.json
+research_notes/
+reports/

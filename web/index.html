@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Proofprint</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FAF9F6; --surface:#FFFFFF; --ink:#1C1A17; --ink-2:#6C6860; --line:#EAE6DE;
+    --accent:#C96442; --accent-ink:#A94D2E;
+    --ok:#1E7A47; --ok-bg:#E7F2EB; --warn:#B26B0C; --warn-bg:#F8EEDA; --block:#C13B2C; --block-bg:#FAE7E3;
+    color-scheme:light;
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}   /* must beat .screen{display:flex} */
+  html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:'Hanken Grotesk',system-ui,sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased;
+       display:flex;flex-direction:column;align-items:center}
+  .app{width:100%;max-width:440px;height:100dvh;overflow:hidden;display:flex;flex-direction:column;
+       padding:0 20px calc(24px + env(safe-area-inset-bottom));padding-top:calc(18px + env(safe-area-inset-top))}
+  .brand{display:flex;align-items:center;gap:9px;padding:6px 0 4px}
+  .brand svg{width:20px;height:20px}
+  .brand span{font-family:'Space Mono','Hanken Grotesk',monospace;font-weight:700;letter-spacing:.22em;font-size:12px;color:var(--ink-2)}
+  h1{font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:30px;line-height:1.1;margin:0;letter-spacing:-.01em;text-wrap:balance}
+  h2{font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:21px;margin:0;letter-spacing:-.01em;line-height:1.15}
+  p{margin:0;color:var(--ink-2);font-size:15px}
+  .screen{flex:1;min-height:0;display:flex;flex-direction:column}
+  .grow{flex:1}
+  .stack{display:flex;flex-direction:column;gap:14px}
+  .center{align-items:center;text-align:center}
+
+  button{font:inherit;font-weight:600;border:0;border-radius:13px;padding:15px 20px;cursor:pointer}
+  .btn{background:var(--accent);color:#fff;width:100%;font-size:16px}
+  .btn:disabled{opacity:.45}
+  .btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+  .btn-row{display:flex;gap:10px}
+  .btn-row>*{flex:1}
+
+  .eyebrow{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-ink);font-weight:700}
+
+  /* camera viewport with official-app crop mask */
+  .viewport{position:relative;width:100%;flex:1;min-height:0;border-radius:20px;overflow:hidden;background:#0c0c0d;margin:2px 0}
+  .viewport img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .viewport video{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none} /* source only */
+  .feed{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .guide{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+         box-shadow:0 0 0 2000px rgba(12,12,13,.55);pointer-events:none}
+  .guide.card{width:86%;aspect-ratio:1.585;border-radius:14px;border:2px solid rgba(255,255,255,.95)}
+  .guide.circle{width:74%;aspect-ratio:1;border-radius:50%;border:2px solid rgba(255,255,255,.95)}
+  /* corner ticks for the card */
+  .tick{position:absolute;width:22px;height:22px;border:0 solid #fff}
+  .card .tick.tl{top:-2px;left:-2px;border-top-width:3px;border-left-width:3px;border-top-left-radius:14px}
+  .card .tick.tr{top:-2px;right:-2px;border-top-width:3px;border-right-width:3px;border-top-right-radius:14px}
+  .card .tick.bl{bottom:-2px;left:-2px;border-bottom-width:3px;border-left-width:3px;border-bottom-left-radius:14px}
+  .card .tick.br{bottom:-2px;right:-2px;border-bottom-width:3px;border-right-width:3px;border-bottom-right-radius:14px}
+  .hint{position:absolute;left:0;right:0;bottom:14px;text-align:center;color:#fff;font-size:13.5px;font-weight:600;
+        text-shadow:0 1px 6px rgba(0,0,0,.6);z-index:2}
+
+  /* shutter */
+  .shutter{width:72px;height:72px;border-radius:50%;background:#fff;border:5px solid var(--line);
+           margin:2px auto 0;box-shadow:0 4px 16px rgba(0,0,0,.12)}
+  .shutter:active{transform:scale(.94)}
+
+  .thumbs{display:flex;gap:10px}
+  .thumb{width:56px;height:56px;border-radius:12px;object-fit:cover;border:1px solid var(--line)}
+
+  .result{border-radius:18px;padding:22px;text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center}
+  .result .big{font-family:'Fraunces',serif;font-size:26px;font-weight:600}
+  .result.pass{background:var(--ok-bg);color:var(--ok)}
+  .result.step_up{background:var(--warn-bg);color:var(--warn)}
+  .result.block{background:var(--block-bg);color:var(--block)}
+  .result .disc{width:66px;height:66px;border-radius:50%;background:#fff;display:grid;place-items:center}
+  .meta{font-family:'Space Mono',monospace;font-size:11.5px;color:var(--ink-2);word-break:break-word}
+
+  .spinner{width:46px;height:46px;border-radius:50%;border:4px solid var(--line);border-top-color:var(--accent);
+           animation:spin 1s linear infinite;margin:8px auto}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @media(prefers-reduced-motion:reduce){.spinner{animation:none}}
+  .steps{display:flex;gap:6px;margin-top:2px}
+  .steps i{height:4px;flex:1;border-radius:2px;background:var(--line)}
+  .steps i.on{background:var(--accent)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="brand">
+    <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" aria-hidden="true">
+      <circle cx="12" cy="12" r="7"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="var(--ink)"></path>
+      <circle cx="12" cy="12" r="2" fill="var(--accent)" stroke="none"></circle></svg>
+    <span>PROOFPRINT</span>
+  </div>
+
+  <!-- INTRO -->
+  <section id="intro" class="screen stack">
+    <div class="grow" style="display:flex;flex-direction:column;justify-content:center;gap:16px">
+      <span class="eyebrow">Digital onboarding</span>
+      <h1>Let's confirm<br>it's really you.</h1>
+      <p>Photograph your ID, passport or driving licence, then take a quick selfie. About 30&nbsp;seconds, all on this phone.</p>
+    </div>
+    <div class="stack">
+      <button class="btn" id="begin">Begin verification</button>
+      <p class="center" style="font-size:12.5px">Secured by Swisscom Trust · your photos stay on the verification server</p>
+    </div>
+  </section>
+
+  <!-- ID CAPTURE -->
+  <section id="idScreen" class="screen stack" hidden>
+    <div class="steps"><i class="on"></i><i></i></div>
+    <div><span class="eyebrow">Step 1 of 2</span><h2 style="margin-top:5px">Photograph your document</h2>
+      <p style="margin-top:4px">Fit the card inside the frame. Avoid glare.</p></div>
+    <div class="viewport">
+      <video id="idVideo" playsinline muted autoplay></video>
+      <canvas id="idFeed" class="feed"></canvas>
+      <img id="idShot" hidden alt="">
+      <div class="guide card" id="idGuide"><span class="tick tl"></span><span class="tick tr"></span><span class="tick bl"></span><span class="tick br"></span></div>
+      <div class="hint" id="idHint">Line up your ID and tap the button</div>
+    </div>
+    <div id="idCapRow"><div class="shutter" id="idShutter" role="button" aria-label="Capture document"></div></div>
+    <div id="idConfirm" class="btn-row" hidden>
+      <button class="btn-ghost" id="idRetake">Retake</button>
+      <button class="btn" id="idUse">Use photo</button>
+    </div>
+  </section>
+
+  <!-- SELFIE -->
+  <section id="selfieScreen" class="screen stack" hidden>
+    <div class="steps"><i class="on"></i><i class="on"></i></div>
+    <div><span class="eyebrow">Step 2 of 2</span><h2 style="margin-top:5px">Take a selfie</h2>
+      <p style="margin-top:4px">Put your face inside the circle.</p></div>
+    <div class="viewport">
+      <video id="selfieVideo" playsinline muted autoplay></video>
+      <canvas id="selfieFeed" class="feed"></canvas>
+      <img id="selfieShot" hidden alt="">
+      <div class="guide circle" id="selfieGuide"></div>
+      <div class="hint" id="selfieHint">Center your face and tap the button</div>
+    </div>
+    <div id="selfieCapRow"><div class="shutter" id="selfieShutter" role="button" aria-label="Capture selfie"></div></div>
+    <div id="selfieConfirm" class="btn-row" hidden>
+      <button class="btn-ghost" id="selfieRetake">Retake</button>
+      <button class="btn" id="selfieUse">Use photo</button>
+    </div>
+  </section>
+
+  <!-- CHECKING -->
+  <section id="checking" class="screen stack center" hidden>
+    <div class="grow" style="display:flex;flex-direction:column;justify-content:center;gap:10px">
+      <div class="spinner"></div>
+      <h2>Checking it's a live capture</h2>
+      <p>A few seconds.</p>
+    </div>
+  </section>
+
+  <!-- RESULT -->
+  <section id="resultScreen" class="screen stack" hidden>
+    <div class="grow" style="display:flex;flex-direction:column;justify-content:center;gap:16px">
+      <div class="thumbs"><img id="rIdThumb" class="thumb" alt=""><img id="rSelfieThumb" class="thumb" alt=""></div>
+      <div class="result" id="resultBox">
+        <div class="disc" id="resultDisc"></div>
+        <div class="big" id="resultTitle"></div>
+        <p id="resultSub" style="color:inherit;opacity:.85"></p>
+      </div>
+      <p class="meta" id="resultMeta"></p>
+    </div>
+    <button class="btn-ghost" id="restart">Start over</button>
+  </section>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const screens = ["intro","idScreen","selfieScreen","checking","resultScreen"];
+function show(id){ screens.forEach(s => $(s).hidden = (s!==id)); }
+
+let stream = null, idBlob = null, selfieBlob = null;
+const meta = { label:"", settings:{}, hasMotion:false,
+               claimsMobile:/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent), frameIntervals:[] };
+let lastT = 0, frameCount = 0;
+
+async function stopStream(){ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }
+async function startCamera(videoEl, facing, collectMeta){
+  await stopStream();
+  stream = await navigator.mediaDevices.getUserMedia({
+    audio:false,
+    video:{ facingMode: facing, width:{ideal:1280}, height:{ideal:960}, frameRate:{ideal:30,max:30} }
+  });
+  videoEl.srcObject = stream;
+  if(collectMeta){
+    const t = stream.getVideoTracks()[0];
+    meta.label = t.label || "";
+    meta.settings = t.getSettings ? t.getSettings() : {};
+    frameCount = 0; lastT = 0;
+    const onF = now => { if(lastT) meta.frameIntervals.push(now-lastT); lastT=now;
+                         if(++frameCount < 45 && videoEl.requestVideoFrameCallback) videoEl.requestVideoFrameCallback(onF); };
+    if(videoEl.requestVideoFrameCallback) videoEl.requestVideoFrameCallback(onF);
+  }
+}
+
+// Draw the camera into a canvas with our OWN cover geometry, so display and crop
+// share exact coordinates on every device (iOS object-fit on <video> is unreliable).
+let feedRaf = null;
+function startFeed(videoEl, canvasEl, mirror){
+  const ctx = canvasEl.getContext("2d");
+  const draw = () => {
+    const r = canvasEl.getBoundingClientRect();
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const cw = Math.round(r.width*dpr), ch = Math.round(r.height*dpr);
+    if (canvasEl.width!==cw || canvasEl.height!==ch){ canvasEl.width=cw; canvasEl.height=ch; }
+    const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
+    if (vw && vh){
+      const s = Math.max(cw/vw, ch/vh);            // cover
+      const dw = vw*s, dh = vh*s, dx = (cw-dw)/2, dy = (ch-dh)/2;
+      ctx.save();
+      if (mirror){ ctx.translate(cw,0); ctx.scale(-1,1); }
+      ctx.drawImage(videoEl, dx, dy, dw, dh);
+      ctx.restore();
+      canvasEl._geo = { s, dx, dy, cw, ch, dpr, mirror };
+    }
+    feedRaf = requestAnimationFrame(draw);
+  };
+  cancelAnimationFrame(feedRaf); draw();
+}
+function stopFeed(){ cancelAnimationFrame(feedRaf); }
+
+// crop the guide rectangle from the FULL-RES source using the same geometry
+function cropToGuide(videoEl, canvasEl, guideEl, capLong=1200){
+  const g = canvasEl._geo; if(!g) return Promise.resolve(null);
+  const cr = canvasEl.getBoundingClientRect(), gr = guideEl.getBoundingClientRect();
+  let gx=(gr.left-cr.left)*g.dpr, gy=(gr.top-cr.top)*g.dpr, gw=gr.width*g.dpr, gh=gr.height*g.dpr;
+  if (g.mirror) gx = g.cw - (gx+gw);               // mirrored display -> unmirrored source
+  const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
+  let sx=(gx-g.dx)/g.s, sy=(gy-g.dy)/g.s, sw=gw/g.s, sh=gh/g.s;
+  sx=Math.max(0,sx); sy=Math.max(0,sy); sw=Math.min(sw,vw-sx); sh=Math.min(sh,vh-sy);
+  const k = Math.min(1, capLong/Math.max(sw,sh));
+  const cw=Math.round(sw*k), ch=Math.round(sh*k);
+  const c=document.createElement("canvas"); c.width=cw; c.height=ch;
+  c.getContext("2d").drawImage(videoEl, sx,sy,sw,sh, 0,0,cw,ch);   // raw pixels, full res
+  return new Promise(res => c.toBlob(b=>res({blob:b, url:c.toDataURL("image/jpeg",0.9)}), "image/jpeg", 0.9));
+}
+
+// ---- INTRO ----
+$("begin").onclick = async () => {
+  // user gesture: ask for motion (iOS) up front — "no motion on a phone" is an attack tell
+  if (typeof DeviceMotionEvent?.requestPermission === "function"){ try{ await DeviceMotionEvent.requestPermission(); }catch(_){} }
+  window.addEventListener("devicemotion", e => { if(e.rotationRate && e.rotationRate.alpha!=null) meta.hasMotion=true; });
+  show("idScreen");
+  try { await startCamera($("idVideo"), {ideal:"environment"}, false); startFeed($("idVideo"), $("idFeed"), false); }
+  catch(e){ $("idHint").textContent = "Camera error: " + e.message; }
+};
+
+// ---- ID CAPTURE ----
+$("idShutter").onclick = async () => {
+  const out = await cropToGuide($("idVideo"), $("idFeed"), $("idGuide")); if(!out) return; const {blob,url}=out; stopFeed();
+  idBlob = blob; $("idShot").src = url; $("idShot").hidden=false;
+  $("idFeed").hidden=true; $("idHint").hidden=true;
+  $("idCapRow").hidden=true; $("idConfirm").hidden=false;
+};
+$("idRetake").onclick = () => {
+  $("idShot").hidden=true; $("idFeed").hidden=false; startFeed($("idVideo"), $("idFeed"), false); $("idHint").hidden=false;
+  $("idConfirm").hidden=true; $("idCapRow").hidden=false;
+};
+$("idUse").onclick = async () => {
+  show("selfieScreen");
+  try { await startCamera($("selfieVideo"), "user", true); startFeed($("selfieVideo"), $("selfieFeed"), true); }
+  catch(e){ $("selfieHint").textContent = "Camera error: " + e.message; }
+};
+
+// ---- SELFIE ----
+$("selfieShutter").onclick = async () => {
+  const out = await cropToGuide($("selfieVideo"), $("selfieFeed"), $("selfieGuide"), 900); if(!out) return; const {blob,url}=out; stopFeed();
+  selfieBlob = blob; $("selfieShot").src = url; $("selfieShot").hidden=false;
+  $("selfieFeed").hidden=true; $("selfieHint").hidden=true;
+  $("selfieCapRow").hidden=true; $("selfieConfirm").hidden=false;
+};
+$("selfieRetake").onclick = () => {
+  $("selfieShot").hidden=true; $("selfieFeed").hidden=false; startFeed($("selfieVideo"), $("selfieFeed"), true); $("selfieHint").hidden=false;
+  $("selfieConfirm").hidden=true; $("selfieCapRow").hidden=false;
+};
+$("selfieUse").onclick = () => { stopFeed(); stopStream(); submit(); };
+
+// ---- SUBMIT ----
+async function submit(){
+  show("checking");
+  $("rIdThumb").src = $("idShot").src; $("rSelfieThumb").src = $("selfieShot").src;
+  try {
+    const s = await fetch("/session",{method:"POST"}).then(r=>r.json());
+    const fd = new FormData();
+    fd.append("id_photo", idBlob, "id.jpg");
+    fd.append("selfie", selfieBlob, "selfie.jpg");
+    fd.append("meta", JSON.stringify(meta));
+    const res = await fetch(`/session/${s.session_id}/capture`,{method:"POST",body:fd}).then(r=>r.json());
+    render(res);
+  } catch(e){ render({decision:"block", signals:{face:{reason:"network error: "+e.message}, integrity:{ok:true,flags:[]}}}); }
+}
+
+function render(res){
+  const f = res.signals.face || {}, ig = res.signals.integrity || {};
+  const box = $("resultBox"); box.className = "result " + res.decision;
+  const title = {pass:"You're verified.", step_up:"One more step.", block:"We couldn't confirm it."}[res.decision] || res.decision;
+  const sub = {pass:"Your identity is confirmed.", step_up:"Let's add a quick check — it's not a problem.",
+               block:"Something didn't line up. Please try again."}[res.decision] || "";
+  $("resultTitle").textContent = title; $("resultSub").textContent = sub;
+  const col = getComputedStyle(box).color;
+  $("resultDisc").innerHTML =
+    res.decision==="pass"  ? `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4 10-11"/></svg>`
+  : res.decision==="step_up" ? `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="2.6" stroke-linecap="round"><path d="M12 7v7"/><circle cx="12" cy="18" r="0.6" fill="${col}"/></svg>`
+  : `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="2.6" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg>`;
+  const igtxt = ig.ok ? "clean" : "flags: "+(ig.flags||[]).join(", ");
+  const dbg = f.debug ? ` · ID ${f.debug.id_face} / selfie ${f.debug.selfie_face}` : "";
+  $("resultMeta").textContent = `face ${f.score ?? "-"} (${f.verdict||f.reason||""}) · integrity ${igtxt}${dbg}`;
+  show("resultScreen");
+}
+$("restart").onclick = () => { idBlob=selfieBlob=null; meta.frameIntervals=[]; meta.hasMotion=false;
+  $("idShot").hidden=true; $("idFeed").hidden=false; startFeed($("idVideo"), $("idFeed"), false); $("idHint").hidden=false; $("idConfirm").hidden=true; $("idCapRow").hidden=false;
+  $("selfieShot").hidden=true; $("selfieFeed").hidden=false; startFeed($("selfieVideo"), $("selfieFeed"), true); $("selfieHint").hidden=false; $("selfieConfirm").hidden=true; $("selfieCapRow").hidden=false;
+  show("intro"); };
+</script>
+</body>
+</html>
