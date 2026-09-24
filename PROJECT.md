@@ -273,6 +273,18 @@ swisscom-research/    ← the research (READ THESE for methods/papers):
 
 ## 6. How to run (dev)
 
+**One command, does everything:**
+```bash
+./demo.sh          # normal (mitigated) app
+./demo.sh naive    # Act 2 of the demo: decides on face-match only
+```
+Sets up the venv on first run, starts the auto-reloading server on `:8010` (not `:8000` —
+see the Live Share gotcha below), opens a `cloudflared` quick tunnel, and prints the
+`https://…trycloudflare.com` link to open on the phone. **Ctrl+C stops both.** If a process
+ever gets stuck (rare — quick tunnels are known to loop-retry after dying, see the gotcha
+below), `pkill -f 'uvicorn main:app'` and `pkill -f 'cloudflared tunnel'` clear it manually.
+
+**Manual / step-by-step**, if you want the two pieces separately:
 ```bash
 # one-time
 cd server && python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
@@ -281,8 +293,7 @@ cd server && python3 -m venv .venv && ./.venv/bin/pip install -r requirements.tx
 # separate terminal, keep it open (URL stays stable while it lives):
 cloudflared tunnel --url http://localhost:8000
 ```
-Open the printed `https://…trycloudflare.com` on the phone. `brew install cloudflared`
-if missing. Camera needs HTTPS — that's why the tunnel exists.
+`brew install cloudflared` if missing. Camera needs HTTPS — that's why the tunnel exists.
 
 ---
 
