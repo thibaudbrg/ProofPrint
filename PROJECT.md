@@ -157,6 +157,9 @@ needs `brew install tesseract` separately either way.
 - Own endpoints (`GET /lab/light/latest|{id}`, `DELETE /lab/light`), in-memory, last 40 runs.
 
 **Recent changes**
+- **`research/light_method_summary.md`** — plain-language summary of *why* check 5 works the way it does
+  (from `research/light_algorithm.md`): screen as light source, face-minus-background chroma, RGB + grey
+  guards, server-minted JIT sequence, permutation test, never-pass-when-unsure, what it does / doesn't catch.
 - **Vehicle warning + Skip on the phone-move instruction page:** "Make sure you are standing or
   sitting still — not in a moving car, train or tram… If you are travelling, skip this step." Skip
   sends `meta.skipped.motion=true` (no burst) → server `motion.verdict="skipped"` (enabled, reason
