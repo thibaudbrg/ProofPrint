@@ -136,3 +136,16 @@ def test_genuine_with_accelerometer_still_passes():
     r = mc.check(m, render_frames(m))
     assert r["verdict"] == "pass", r
     assert r["acc_rms_ms2"] is not None and r["acc_rms_ms2"] > mc.STATIONARY_ACC_MS2
+
+
+def test_featureless_background_with_face_mask_uses_phase_corr_without_crashing(monkeypatch):
+    # Real-phone crash 24 Sep: a flat wall behind the user -> no corners -> phase-correlation
+    # fallback, and the face mask multiplied the float32 frame into float64, which OpenCV
+    # rejects against the float32 Hanning window (assertion in phaseCorrelate). Two blocked
+    # captures 500'd and never reached the audit log.
+    import motion_check as mc
+    monkeypatch.setattr(mc, "_face_box", lambda bgr: (100, 60, 80, 100))
+    m = gyro_trace(seed=2)
+    frames = [(t, np.full((240, 320, 3), 128, np.uint8)) for t, _ in render_frames(m)[:12]]
+    res = mc.check(m, frames)                     # must not raise
+    assert res["verdict"] in ("pass", "review", "fail", "insufficient")

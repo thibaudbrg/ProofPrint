@@ -85,7 +85,8 @@ spec `alpha` = about the device X axis (**pitch**), `beta` = about Y (**yaw**, t
 Android both report deg/s for this event. `ax/ay/az` = `DeviceMotionEvent.acceleration`
 (gravity removed, m/s²) — used for the stationary-device test. `events` marks the capture
 phases on the same clock (arXiv 2605.00218 aligns motion to capture events; check 5 adds
-`light_start` / `light_end`). Frame files are matched to `meta.frames[].file` by filename.
+`light_start` / `light_end`; check 6 adds `profile_turn_detected` = when the phone saw the head
+start to move and its 4.5 s window began). Frame files are matched to `meta.frames[].file` by filename.
 
 ## 3. GET /session/{id}/result  → the decision + why
 ```json
@@ -122,6 +123,9 @@ phases on the same clock (arXiv 2605.00218 aligns motion to capture events; chec
   }
 }
 ```
+`meta.skipped: { "motion": true }` = the user tapped Skip on the phone-move instruction page
+("I'm in a car / train / tram") → `motion: { "verdict": "skipped", "enabled": true, "reason":
+"user_in_vehicle" }` → step_up with a readable reason, never block.
 `motion.flags` may contain `stationary_device` (no sensor jitter at all → block) or
 `video_moves_phone_still` (background pans while the phone is still → block). Head movement
 alone is masked out and yields `insufficient` ("tilt the phone, not your head").
@@ -140,6 +144,12 @@ without a validated benefit).
 first given name only — for threshold calibration.
 `decision` ∈ `pass | step_up | block | pending`. `mode` ∈ `full | naive`
 (`PROOFPRINT_MODE=naive` = the broken app: decides on `face` only).
+The result also carries `reasons: ["…"]` (one human-readable line per trigger of the decision),
+`checks_enabled: { motion, light, profile, doc_back }` and `timings_ms: { id, face, light, motion, profile }`
+(server compute per check). **Analyst endpoints:** `GET /log?limit=` = counts per decision / mode /
+platform / check verdict + score spreads + the recent rows; `GET /log/{session_id}` = the full trace of
+one session (every signal with its curves, reasons, a non-personal capture summary — images stripped);
+`GET /dashboard` = the analyst dashboard that reads both.
 `motion.verdict` ∈ `pass | review | fail | insufficient | absent`; `series` holds the
 lag-aligned curves for the analyst dashboard.
 `light.verdict` (check 5) ∈ `pass | review | fail | insufficient | skipped | absent`.
