@@ -48,27 +48,53 @@ fi
 SERVER_LOG=$(mktemp)
 TUNNEL_LOG=$(mktemp)
 
+# uvicorn --reload forks its actual worker via Python's multiprocessing, which
+# shows up in `ps`/`pgrep -f` as a bare "spawn_main(...)" line with NO trace of
+# "uvicorn" or "main:app" in it — pattern-matching the command line misses it
+# entirely, and a killed reloader can leave that worker orphaned (PPID 1),
+# still bound to the port. Kill by PORT instead: authoritative regardless of
+# what the process calls itself.
+kill_port() {
+  local pids; pids=$(lsof -ti "tcp:$1" 2>/dev/null || true)
+  [ -z "$pids" ] && return 0
+  echo "   clearing stale process(es) on :$1: $pids"
+  kill $pids 2>/dev/null || true
+  sleep 1
+  pids=$(lsof -ti "tcp:$1" 2>/dev/null || true)
+  [ -n "$pids" ] && kill -9 $pids 2>/dev/null || true
+  sleep 0.3
+}
+
+echo "-- making sure :$PORT is free (clearing any leftover run) --"
+kill_port "$PORT"
+# A crashed previous run can also leave its cloudflared pointed at OUR port
+# still running (uselessly — its URL is dead once the old server is gone).
+# Safe to clear here, before we start: nothing legitimate should be pointed
+# at this exact port yet. (Never done during shutdown — see cleanup()'s note.)
+pkill -f "cloudflared tunnel --url http://localhost:$PORT" 2>/dev/null || true
+
 CLEANED_UP=0
 cleanup() {
   [ "$CLEANED_UP" = 1 ] && return
   CLEANED_UP=1
   echo
   echo "-- stopping server + tunnel --"
-  # Kill by PID (SERVER_PID is a subshell, so also kill ITS children), then by
-  # process-group as a belt-and-braces net, then confirm nothing is left on
-  # this script's port. A trap alone was seen to leave orphans running once.
+  # Only ever touch PIDs THIS run started (SERVER_PID/its own children, and our
+  # own TUNNEL_PID) — never pattern-match by command line here. Two instances
+  # of this script share the exact same cloudflared command line, and a broad
+  # `pkill -f cloudflared` in one instance's cleanup was seen to kill the
+  # OTHER instance's tunnel too. Port-clearing (kill_port) is a pre-flight
+  # step only (above), never part of shutdown, for the same reason: by the
+  # time this fires, the port may legitimately belong to someone else's run.
   [ -n "${SERVER_PID:-}" ] && pkill -TERM -P "$SERVER_PID" 2>/dev/null || true
   [ -n "${SERVER_PID:-}" ] && kill "$SERVER_PID" 2>/dev/null || true
   [ -n "${TUNNEL_PID:-}" ] && kill "$TUNNEL_PID" 2>/dev/null || true
   sleep 1
-  pkill -TERM -f "uvicorn main:app.*--port $PORT" 2>/dev/null || true
-  pkill -TERM -f "cloudflared tunnel --url http://localhost:$PORT" 2>/dev/null || true
-  sleep 1
-  if pgrep -f "uvicorn main:app.*--port $PORT" >/dev/null 2>&1 \
-     || pgrep -f "cloudflared tunnel --url http://localhost:$PORT" >/dev/null 2>&1; then
-    echo "   (a process didn't stop gracefully — force-killing)"
-    pkill -KILL -f "uvicorn main:app.*--port $PORT" 2>/dev/null || true
-    pkill -KILL -f "cloudflared tunnel --url http://localhost:$PORT" 2>/dev/null || true
+  [ -n "${SERVER_PID:-}" ] && kill -9 "$SERVER_PID" 2>/dev/null || true
+  [ -n "${TUNNEL_PID:-}" ] && kill -9 "$TUNNEL_PID" 2>/dev/null || true
+  if lsof -ti "tcp:$PORT" >/dev/null 2>&1; then
+    echo "   note: :$PORT is still occupied (probably a reload worker this script can't see" \
+         "by PID) — it will be cleared automatically the next time you run ./demo.sh."
   fi
 }
 trap cleanup EXIT INT TERM
@@ -80,6 +106,11 @@ SERVER_PID=$!
 
 for _ in $(seq 1 20); do
   curl -sf -o /dev/null "http://localhost:$PORT/" && break
+  if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+    echo "!! server process exited immediately — tail of its log:"
+    tail -30 "$SERVER_LOG"
+    exit 1
+  fi
   sleep 0.5
 done
 if ! curl -sf -o /dev/null "http://localhost:$PORT/"; then
