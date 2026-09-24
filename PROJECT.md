@@ -52,9 +52,14 @@ review it together before merging.
 - [ ] **APCER/BPCER** evaluation run.
 
 **Open TODO / next actions**
-0. **Live now:** `https://collaborative-have-locator-shots.trycloudflare.com` (Vasiliy's Mac,
-   uvicorn --reload on **:8010** + cloudflared; dies with that process — restart and update
-   this line).
+0. **Live now:** `https://slip-sleeping-european-locks.trycloudflare.com` (Vasiliy's Mac,
+   uvicorn --reload on **:8010** + cloudflared quick tunnel). **Quick tunnels are flaky over
+   long idle periods** — one died ~15 min in with `Register tunnel error: Unauthorized:
+   Tunnel not found` and looped retrying forever; only fix is killing that cloudflared
+   process and starting a new one (new URL every time — no way to keep the same link on
+   the free quick-tunnel tier). Don't rely on a tunnel URL surviving a coffee break; for the
+   live demo, start it fresh a few minutes before and have a fallback (same-WiFi LAN IP,
+   or `cloudflared tunnel login` + a named tunnel if this keeps biting us).
 1. **Calibrate on phones** (what "phone-test" means: the code is complete, the THRESHOLDS
    were set on synthetic data — every real run either confirms them or moves them). Do 5
    genuine runs (2 phones, venue light) and paste the two log lines per run here:
