@@ -41,6 +41,8 @@ server/sessions/
 # allow small design/static images that ARE part of the app
 !web/**/*.svg
 !web/assets/**
+# demo attack rig: source face for deepfake injection (not live biometric capture)
+!web/attack/source_face.jpg
 
 # ---------- Secrets / local config ----------
 .env
