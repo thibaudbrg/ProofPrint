@@ -17,8 +17,15 @@ complexity. The ID is now held in the left hand as a UX/demo cue only; the only 
 is the head turn.
 
 **⚠ Ownership note:** touches `server/profile_check.py`, `server/main.py` (one call site),
-`web/index.html` (Phase B copy + guide only, Phase A/tilt untouched), `contract/contract.md`,
-this file. One feature, small diff — see the "Recent changes" entry below for the exact list.
+`web/index.html` (Phase B copy + guide, plus a new prep screen before the live capture),
+`contract/contract.md`, this file. One feature, small diff — see "Recent changes" below.
+
+**⚠ If you pull this branch, re-run `pip install -r requirements.txt` in your venv.** A venv
+created before check 2 landed does NOT have `passporteye`, and `id_check.py` swallows that
+as an `ImportError` and silently returns "no MRZ" for every document — looks exactly like a
+document-specific bug (we chased it as "maybe Cyrillic ID cards don't parse") but it was
+purely a stale venv on one machine. `tesseract` (the OCR binary, not a pip package) still
+needs `brew install tesseract` separately either way.
 
 **What runs right now**
 - Server: FastAPI, auto-reload, on `:8000`. Start with `./dev.sh` (uvicorn --reload).
@@ -87,6 +94,19 @@ this file. One feature, small diff — see the "Recent changes" entry below for 
 5. Check 5 (light pulse) still open; the `challenge` colours are minted but unused.
 
 **Recent changes**
+- **UX: a "get ready" prep screen before the live capture** (killer feature only). Previously
+  the user only learned "hold your ID in your left hand, turn LEFT/RIGHT" a couple of seconds
+  before it started happening, mid-recording. Now, right after the ID photo is confirmed (and
+  before the selfie camera even opens), a screen explains both moves plainly — including the
+  actual side they'll be asked to turn to, since the session (and its nonce) is already minted
+  at Begin. Revealing the side early doesn't weaken anything: the protection is the SERVER
+  picking it per-session and checking server-side, not hiding it from the honest user in front
+  of the phone.
+- **Fixed: `passporteye` missing from one venv** → every document showed `doc_type: no_mrz`
+  regardless of content. Root cause was a stale venv (created before check 2 added the
+  dependency), not anything about the document. `pip install passporteye==2.2.2` into the
+  existing venv fixed it; `tesseract` was already present via Homebrew. See the ownership
+  note above.
 - **Check 6 simplified to v3** (`feat/simplify-killer-feature`, branched fresh off `main` after
   PR #1 + PR #2 + check 2 + audit log all landed there). Removed: `CardTemplate`/ORB matching,
   `_find_card`/`_find_card_contour`, `occlusion_edge_quality`, `_colour_temp`, the `id_bgr`
