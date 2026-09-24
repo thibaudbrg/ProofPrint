@@ -123,6 +123,9 @@ start to move and its 4.5 s window began). Frame files are matched to `meta.fram
   }
 }
 ```
+`meta.skipped: { "motion": true }` = the user tapped Skip on the phone-move instruction page
+("I'm in a car / train / tram") → `motion: { "verdict": "skipped", "enabled": true, "reason":
+"user_in_vehicle" }` → step_up with a readable reason, never block.
 `motion.flags` may contain `stationary_device` (no sensor jitter at all → block) or
 `video_moves_phone_still` (background pans while the phone is still → block). Head movement
 alone is masked out and yields `insufficient` ("tilt the phone, not your head").

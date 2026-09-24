@@ -319,7 +319,7 @@
         </svg>
       </div>
       <div class="ins-steps" id="insSteps"></div>
-      <div class="ins-warn" id="insWarn" hidden><span>⚠</span><span>This step shows <b>flashing colours</b> (about one change per half second). If flashing lights affect you, skip it — you'll get an alternative check instead.</span></div>
+      <div class="ins-warn" id="insWarn" hidden><span>⚠</span><span id="insWarnText"></span></div>
       <p class="meta" id="insNote"></p>
     </div>
     <button class="btn" id="insGo">I'm ready</button>
@@ -501,8 +501,10 @@ function instruct(kind, side){
                                light:"Your skin must reflect a colour sequence we pick right now — a recording or a face-swap can't.",
                                profile:"Face-swap tools fall apart once the head reaches a full profile." }[kind];
   $("insArtPhone").hidden = kind !== "move"; $("insArtProfile").hidden = kind !== "profile"; $("insArtLight").hidden = kind !== "light";
-  $("insWarn").hidden = kind !== "light";
-  const skip = $("insSkip"); skip.hidden = kind !== "light";
+  const WARN = { light: "This step shows <b>flashing colours</b> (about one change per half second). If flashing lights affect you, skip it — you'll get an alternative check instead.",
+                 move: "Make sure you are <b>standing or sitting still</b> — not in a moving car, train or tram. The sensors would feel the vehicle, not you. If you are travelling, skip this step." };
+  $("insWarn").hidden = !WARN[kind]; $("insWarnText").innerHTML = WARN[kind] || "";
+  const skip = $("insSkip"); skip.hidden = !WARN[kind];
   // reduced-motion users get the opt-out as a full button
   skip.className = (kind === "light" && matchMedia("(prefers-reduced-motion: reduce)").matches) ? "btn-ghost" : "btn-link";
   if (kind === "profile") $("insArrow").setAttribute("transform", side === "left" ? "" : "translate(220 0) scale(-1 1)");
@@ -839,9 +841,9 @@ async function runLivePhases(){
       else if (session) { show("selfieScreen"); await phaseLight(v); }
     }
     if (motionOn()) {
-      await instruct("move");                          // full-page explanation, then the live phase
-      show("selfieScreen"); resumeSelfieFeed();
-      await phaseMove(v); stopFeed();
+      const go = await instruct("move");               // full-page explanation, then the live phase
+      if (!go) { meta.skipped = { ...(meta.skipped || {}), motion: true }; burstFrames = []; meta.frames = []; meta.motion = []; }
+      else { show("selfieScreen"); resumeSelfieFeed(); await phaseMove(v); stopFeed(); }
     }
     if (killerOn()) {
       await instruct("profile", (session && session.profile_side) || "left");
@@ -922,7 +924,7 @@ function render(res){
 $("restart").onclick = () => {
   idBlob=idBackBlob=selfieBlob=null; idFrontUrl=null; session=null;
   meta.frameIntervals=[]; meta.hasMotion=false; meta.frames=[]; meta.motion=[]; meta.events=[];
-  meta.profile={enabled:false, side:null, frames:[]}; delete meta.light; burstFrames=[]; profileFrames=[]; lightFrames=[];
+  meta.profile={enabled:false, side:null, frames:[]}; delete meta.light; delete meta.skipped; burstFrames=[]; profileFrames=[]; lightFrames=[];
   $("lightFlash").hidden=true; document.documentElement.style.background="";
   setIdSide("front"); resetIdCapture(); $("docBox").hidden=true;
   ["phoneGlyph","profileArrow","liveProgress","shotToast","selfiePreview"].forEach(id=>$(id).hidden=true);
