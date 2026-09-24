@@ -52,8 +52,9 @@ review it together before merging.
 - [ ] **APCER/BPCER** evaluation run.
 
 **Open TODO / next actions**
-0. **Live now:** `https://jvc-fisheries-six-utc.trycloudflare.com` (Vasiliy's Mac, uvicorn
-   --reload on **:8010** + cloudflared; dies with that process — restart and update this line).
+0. **Live now:** `https://collaborative-have-locator-shots.trycloudflare.com` (Vasiliy's Mac,
+   uvicorn --reload on **:8010** + cloudflared; dies with that process — restart and update
+   this line).
 1. **Calibrate on phones** (what "phone-test" means: the code is complete, the THRESHOLDS
    were set on synthetic data — every real run either confirms them or moves them). Do 5
    genuine runs (2 phones, venue light) and paste the two log lines per run here:

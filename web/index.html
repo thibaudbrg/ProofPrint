@@ -214,6 +214,25 @@ const meta = { label:"", settings:{}, hasMotion:false,
                frames:[], motion:[], events:[] };
 let lastT = 0, frameCount = 0;
 
+async function stopStream(){ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }
+async function startCamera(videoEl, facing, collectMeta){
+  await stopStream();
+  stream = await navigator.mediaDevices.getUserMedia({
+    audio:false,
+    video:{ facingMode: facing, width:{ideal:1280}, height:{ideal:960}, frameRate:{ideal:30,max:30} }
+  });
+  videoEl.srcObject = stream;
+  if(collectMeta){
+    const t = stream.getVideoTracks()[0];
+    meta.label = t.label || "";
+    meta.settings = t.getSettings ? t.getSettings() : {};
+    frameCount = 0; lastT = 0;
+    const onF = now => { if(lastT) meta.frameIntervals.push(now-lastT); lastT=now;
+                         if(++frameCount < 45 && videoEl.requestVideoFrameCallback) videoEl.requestVideoFrameCallback(onF); };
+    if(videoEl.requestVideoFrameCallback) videoEl.requestVideoFrameCallback(onF);
+  }
+}
+
 // ---- Check 4 + 6: ONE continuous live capture on the selfie screen ----
 // Phase A (check 4): the user tilts the PHONE. We record low-res frames +
 // devicemotion (rotationRate deg/s AND acceleration m/s^2, per arXiv 2605.00218
