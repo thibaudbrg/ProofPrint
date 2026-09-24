@@ -130,6 +130,13 @@
   @media(prefers-reduced-motion:reduce){.phone-tilt{animation:none}}
   .progress{position:absolute;left:14px;right:14px;bottom:44px;height:6px;border-radius:3px;background:rgba(255,255,255,.3);z-index:2;overflow:hidden}
   .progress i{display:block;height:100%;width:0;background:#fff;transition:width .12s linear}
+
+  /* "get ready" prep screen (killer feature, shown once before the live capture opens) */
+  .prep-row{display:flex;align-items:flex-start;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+  .prep-icon{font-size:34px;line-height:1;flex:none}
+  .prep-row b{display:block;font-size:15px}
+  .prep-row small{display:block;color:var(--ink-2);font-size:13px;line-height:1.4;margin-top:2px}
+  .prep-row mark{background:none;color:var(--accent-ink);font-weight:700;padding:0}
 </style>
 </head>
 <body>
@@ -178,6 +185,21 @@
       <button class="btn-ghost" id="idRetake">Retake</button>
       <button class="btn" id="idUse">Use photo</button>
     </div>
+  </section>
+
+  <!-- GET READY (killer feature only): explain both moves BEFORE the camera opens -->
+  <section id="prepScreen" class="screen stack" hidden>
+    <div class="grow" style="display:flex;flex-direction:column;justify-content:center;gap:16px">
+      <span class="eyebrow">Before the live check</span>
+      <h1 style="font-size:26px">Two quick moves.</h1>
+      <div class="stack">
+        <div class="prep-row"><span class="prep-icon">📱</span><span><b>Tilt your phone</b>
+          <small>Left and right — a couple of seconds, we'll tell you when it's enough.</small></span></div>
+        <div class="prep-row"><span class="prep-icon">🪪</span><span><b>Hold your ID in your <u>left hand</u></b>
+          <small>Then turn your head <mark id="prepSide">LEFT</mark> — an arrow will point the way.</small></span></div>
+      </div>
+    </div>
+    <button class="btn" id="prepReady">I'm ready</button>
   </section>
 
   <!-- SELFIE + LIVENESS (checks 4 + 6, one continuous capture) -->
@@ -233,7 +255,7 @@
 
 <script>
 const $ = id => document.getElementById(id);
-const screens = ["intro","idScreen","selfieScreen","checking","resultScreen"];
+const screens = ["intro","idScreen","prepScreen","selfieScreen","checking","resultScreen"];
 function show(id){ screens.forEach(s => $(s).hidden = (s!==id)); }
 
 let stream = null, idBlob = null, idBackBlob = null, idFrontUrl = null, selfieBlob = null;
@@ -481,11 +503,25 @@ $("idShutter").onclick = async () => {
   $("idCapRow").hidden=true; $("idConfirm").hidden=false;
 };
 $("idRetake").onclick = resetIdCapture;
+// Between the ID capture and the live check: if the killer feature is on, tell
+// the user what's coming (tilt, then ID-in-hand + head turn) BEFORE the camera
+// opens, so they aren't figuring it out during the few seconds of recording.
+// The turn side is already known (session minted at Begin) — showing it now
+// doesn't weaken anything, since the actual protection is the server picking
+// it per-session and checking server-side, not hiding it from an honest user.
+function afterIdCapture(){
+  if (!killerOn()){ goSelfie(); return; }
+  const side = (session && session.profile_side) || "left";
+  $("prepSide").textContent = side.toUpperCase();
+  show("prepScreen");
+}
+$("prepReady").onclick = goSelfie;
+
 $("idUse").onclick = async () => {
   if (idSide==="front"){ setIdSide("back"); resetIdCapture(); return; }   // same rear camera, now the back
-  goSelfie();
+  afterIdCapture();
 };
-$("idSkipBack").onclick = () => { idBackBlob = null; goSelfie(); };
+$("idSkipBack").onclick = () => { idBackBlob = null; afterIdCapture(); };
 
 // ---- SELFIE + LIVE CHECK (one tap) ----
 $("selfieShutter").onclick = async () => {
