@@ -9,7 +9,12 @@
 
 ## 0. STATUS / LOG (update this after every change)
 
-**Last updated:** 2026-09-24 · by: Tibo's Claude session
+**Last updated:** 2026-09-24 · by: Vasiliy's Claude session (branch `feat/motion-check`, PR open)
+
+**⚠ Ownership note:** the `feat/motion-check` branch touches BOTH `server/` (check 4 +
+fusion + naive mode) AND `web/` (3 s liveness burst on the selfie shutter) AND
+`contract/` (frames + motion keys, `motion` signal shape). One feature, one PR —
+review it together before merging.
 
 **What runs right now**
 - Server: FastAPI, auto-reload, on `:8000`. Start with `./dev.sh` (uvicorn --reload).
@@ -22,7 +27,11 @@
 **Build progress (the 5 checks)**
 - [x] **Check 1 — Face match** (walking skeleton, Act 1). Robust to EXIF rotation + small document faces.
 - [x] **Check 3 — Capture integrity** (virtual-cam label, facingMode, no-motion; timing = info only).
-- [ ] **Check 4 — Gyroscope ↔ video** ★ THE CORE. Next up. Needs MediaPipe (pin 0.10.35).
+- [x] **Check 4 — Gyroscope ↔ video** ★ THE CORE. `server/motion_check.py` + burst in
+  `web/index.html`. Phase-correlation global flow vs devicemotion rotationRate, lag search
+  ±300 ms, energy-weighted |Pearson| over yaw/pitch. 12 synthetic tests green. **NOT yet
+  tested on a real phone** — see "Open TODO" #1. No MediaPipe needed (OpenCV only).
+- [x] **Naive mode** for Act 2: `PROOFPRINT_MODE=naive ./dev.sh` → decides on `face` only.
 - [ ] **Check 5 — Light pulse** (flash random colours, skin must reflect them).
 - [ ] **Check 2 — ID card MRZ** (optional; face extraction already works via check 1).
 - [ ] **Attack rig** (OBS + deepfake) → milestone M1 ("naïve app fooled").
@@ -30,11 +39,24 @@
 - [ ] **APCER/BPCER** evaluation run.
 
 **Open TODO / next actions**
-1. Calibrate face threshold on real ID-vs-selfie pairs (see `COSINE_MATCH`/`COSINE_LOW`).
-2. Build check 4 (gyroscope ↔ video).
-3. Set up the attack rig to lock M1.
+1. **Phone-test check 4** (iPhone + Android): run a genuine burst, read the server log line
+   `[motion_check] score=… lag=…`. Expect score > 0.6 and lag 0–150 ms. If real phones
+   score low, first suspects: axis mapping (`ry`=gamma↔horizontal flow), frame timestamps,
+   phone held too still (`gyro_rms_dps` < 8 → "insufficient"). Tune `SCORE_PASS`/`SCORE_REVIEW`
+   in `motion_check.py`.
+2. Calibrate face threshold on real ID-vs-selfie pairs (see `COSINE_MATCH`/`COSINE_LOW`).
+3. Set up the attack rig to lock M1 (naive mode now exists for it).
+4. Analyst dashboard: plot `signals.motion.series` (flow_x vs gyro_yaw, flow_y vs gyro_pitch).
 
 **Recent changes**
+- **Check 4 implemented** (`feat/motion-check`): selfie shutter now records a 3 s burst
+  ("slowly tilt the phone") of ~36 low-res frames + gyro samples, uploads them as repeated
+  `frames` parts + `meta.frames/motion`; server correlates global image shift with
+  rotationRate and returns `signals.motion` (`pass|review|fail|insufficient|absent`, score,
+  lag, aligned series). Fusion: motion `fail` → block; `review/insufficient/absent` → step_up.
+- `PROOFPRINT_MODE=naive` env switch → face-only decision, `mode` echoed in the result.
+- Tests: `server/tests/` (synthetic camera pan renderer + TestClient e2e).
+  Run: `cd server && ./.venv/bin/python -m pytest tests -q`.
 - Face match: try all 4 rotations (EXIF fix), score_threshold 0.6, downscale >1024px.
 - Integrity: demoted `timing_too_regular` → informational (`info[]`), was false-flagging real phones.
 - Web: mirrored the selfie preview (`transform:scaleX(-1)`); ID copy now "ID/passport/driving licence".
@@ -77,7 +99,7 @@ was physically live.
 | 1 · Face match (selfie vs ID) | both | No — it's the identity anchor | ✅ |
 | 2 · ID card (face + optional MRZ) | both | No | face part ✅ / MRZ ⏳ |
 | 3 · Capture integrity (virtual-cam, sensors) | mitigated | Partly (off-the-shelf tools) | ✅ |
-| 4 · **Gyroscope ↔ video** ★ | mitigated | **Yes** (the core) | ⏳ |
+| 4 · **Gyroscope ↔ video** ★ | mitigated | **Yes** (the core) | ✅ code + synthetic tests · ⏳ phone calibration |
 | 5 · Light pulse (colour reflection) | mitigated | Mostly | ⏳ |
 
 **Deliberately NOT used:** iris (needs IR hardware), typing rhythm (no profile at
@@ -119,8 +141,9 @@ Full detail in `contract/contract.md`. Summary:
 3. `GET /session/{id}/result` → `{ decision, signals:{ face, integrity, ... } }`
    `decision ∈ pass | step_up | block | pending`.
 
-**Fusion rule (current):** virtual-cam label → block · face mismatch → block ·
-(face review OR any integrity flag) → step_up · else pass.
+**Fusion rule (current):** virtual-cam label OR motion `fail` → block · face mismatch → block ·
+(face review OR any integrity flag OR motion `review|insufficient|absent`) → step_up · else pass.
+In `PROOFPRINT_MODE=naive`: face match → pass, review → step_up, else block (liveness ignored).
 
 ---
 
@@ -137,7 +160,9 @@ server/               ← Person A
   main.py             ← the 3 routes + fusion
   face_match.py       ← check 1 (YuNet + SFace, rotation-robust)
   integrity_check.py  ← check 3
-  requirements.txt    ← pinned; add mediapipe 0.10.35 + scipy for check 4
+  motion_check.py     ← check 4 (gyro ↔ video, phase correlation + lag search)
+  tests/              ← pytest: synthetic pan renderer + e2e via TestClient
+  requirements.txt    ← pinned (OpenCV + numpy suffice for check 4; pytest + httpx for tests)
   models/             ← YuNet/SFace .onnx (gitignored, auto-download)
   .venv/              ← gitignored
 web/                  ← Person B
@@ -174,8 +199,13 @@ if missing. Camera needs HTTPS — that's why the tunnel exists.
   **CALIBRATE on real ID-vs-selfie pairs** (ID photos score lower — see DocFace+).
 - **EXIF rotation:** phone JPEGs come in sideways via `cv2.imdecode`; we try 4 rotations.
 - **Integrity timing:** weak/noisy → informational only, never blocks.
-- **Check 4 (planned):** MediaPipe Face Landmarker head pose + OpenCV optical flow vs
-  gyro; cross-correlate for lag; pin **mediapipe==0.10.35** (1.0.1 crashes on macOS arm64).
+- **Check 4 (built):** global image shift per frame pair via `cv2.phaseCorrelate` (160 px
+  grey, Hanning window) → px/s; gyro (`beta`→pitch↔vertical flow, `gamma`→yaw↔horizontal
+  flow) interpolated to frame midpoints; |Pearson| per axis, energy-weighted, best over
+  lags ±300 ms. Thresholds `SCORE_PASS=0.60`, `SCORE_REVIEW=0.35`, `MIN_GYRO_RMS_DPS=8`
+  (from synthetic tests — calibrate on phones). Still video + moving phone → fail; moving
+  video + still phone → fail; nothing moved → insufficient (step_up, "please tilt").
+  Head-pose (MediaPipe) was NOT needed; revisit only if background-less scenes break flow.
 - **Check 5 (planned):** server mints random colour seq; skin ROI ÷ background;
   daylight → low SNR → step-up (not fail). Overlaps iProov patent → pitch as fusion.
 
@@ -183,7 +213,9 @@ if missing. Camera needs HTTPS — that's why the tunnel exists.
 
 ## 8. Gotchas (things that already bit us / will)
 
-- iOS `rotationRate` is **degrees/s**; Android Gyroscope API is rad/s (57× bug).
+- `DeviceMotionEvent.rotationRate` is **deg/s on both iOS and Android** (W3C). The rad/s
+  trap is the Generic Sensor API `Gyroscope` — we don't use it. Check 4 uses |correlation|,
+  so a sign flip between platforms can't break it; a unit mix-up only affects `gyro_rms_dps`.
 - iOS needs `DeviceMotionEvent.requestPermission()` inside a user tap; no brightness control.
 - cloudflared quick-tunnel URL changes if the process restarts.
 - `pip install mediapipe` pulls a 2nd OpenCV — keep only one.
@@ -193,8 +225,8 @@ if missing. Camera needs HTTPS — that's why the tunnel exists.
 
 ## 9. Milestones
 
-- **M1** — attack beats the naïve app (needs check 1 + attack rig). *← current target*
-- **M2** — Proofprint blocks the same attack, real user still passes (needs check 4).
+- **M1** — attack beats the naïve app (needs check 1 + attack rig; naive mode ✅). *← current target*
+- **M2** — Proofprint blocks the same attack, real user still passes (check 4 code ✅, phone calibration ⏳).
 - **M3** — numbers on the board (APCER/BPCER) + analyst replay dashboard.
 
 ---

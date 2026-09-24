@@ -22,6 +22,7 @@ import os
 
 import face_match
 import integrity_check
+import motion_check
 
 app = FastAPI(title="Proofprint")
 
@@ -29,6 +30,11 @@ app = FastAPI(title="Proofprint")
 SESSIONS: dict[str, dict] = {}
 
 COLORS = ["black", "red", "green", "blue"]
+
+# Demo switch. PROOFPRINT_MODE=naive = the "broken app" of Act 2: decide on the
+# face match only, ignore every liveness signal (they are still computed and
+# returned so the analyst view can show what the naive app threw away).
+NAIVE = os.environ.get("PROOFPRINT_MODE", "full").lower() == "naive"
 
 
 @app.post("/session")
@@ -48,8 +54,9 @@ def start_session():
 async def capture(sid: str,
                   id_photo: UploadFile = File(...),
                   selfie: UploadFile = File(...),
-                  meta: str = Form(None)):
-    """Receive the ID photo + selfie (+ capture metadata), score, decide."""
+                  meta: str = Form(None),
+                  frames: list[UploadFile] = File(default=[])):
+    """Receive the ID photo + selfie (+ liveness burst frames + metadata), score, decide."""
     if sid not in SESSIONS:
         raise HTTPException(404, "unknown session")
 
@@ -67,20 +74,35 @@ async def capture(sid: str,
         meta_obj = {}
     integ = integrity_check.check(meta_obj)
 
-    # Fusion. Broken app would read `face` only. Mitigated app also weighs
-    # integrity: identity OK but a suspicious capture -> step up, never a
-    # silent pass; a known virtual camera -> block.
-    # (checks 4 motion + 5 light plug in here next.)
-    if integ["hard"]:
+    # Check 4 — gyroscope <-> video. Frame timestamps come from meta.frames
+    # (matched by filename); the JPEGs come as repeated `frames` parts.
+    t_by_name = {f.get("file"): f.get("t") for f in (meta_obj.get("frames") or [])}
+    burst = []
+    for uf in frames:
+        t = t_by_name.get(uf.filename)
+        img = face_match.imdecode(await uf.read())
+        if t is not None and img is not None:
+            burst.append((float(t), img))
+    motion = motion_check.check(meta_obj.get("motion"), burst)
+
+    # Fusion. The naive app (Act 2) reads `face` only. The mitigated app also
+    # weighs integrity + motion: a known virtual camera or a video that does not
+    # move with the phone -> block; a suspicious-but-not-damning capture -> step
+    # up, never a silent pass. (check 5 light plugs in here next.)
+    if NAIVE:
+        decision = {"match": "pass", "review": "step_up"}.get(face.get("verdict"), "block")
+    elif integ["hard"] or motion["verdict"] == "fail":
         decision = "block"
     elif face.get("verdict") == "mismatch":
         decision = "block"
-    elif face.get("verdict") == "review" or not integ["ok"]:
+    elif (face.get("verdict") == "review" or not integ["ok"]
+          or motion["verdict"] in ("review", "insufficient", "absent")):
         decision = "step_up"
     else:
         decision = "pass"
 
-    result = {"decision": decision, "signals": {"face": face, "integrity": integ}}
+    result = {"decision": decision, "mode": "naive" if NAIVE else "full",
+              "signals": {"face": face, "integrity": integ, "motion": motion}}
     SESSIONS[sid]["result"] = result
     return result
 

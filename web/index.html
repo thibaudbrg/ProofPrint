@@ -130,7 +130,7 @@
   <section id="selfieScreen" class="screen stack" hidden>
     <div class="steps"><i class="on"></i><i class="on"></i></div>
     <div><span class="eyebrow">Step 2 of 2</span><h2 style="margin-top:5px">Take a selfie</h2>
-      <p style="margin-top:4px">Put your face inside the circle.</p></div>
+      <p style="margin-top:4px" id="selfieCopy">Put your face inside the circle, tap, then slowly tilt the phone.</p></div>
     <div class="viewport">
       <video id="selfieVideo" playsinline muted autoplay></video>
       <canvas id="selfieFeed" class="feed"></canvas>
@@ -176,8 +176,50 @@ function show(id){ screens.forEach(s => $(s).hidden = (s!==id)); }
 
 let stream = null, idBlob = null, selfieBlob = null;
 const meta = { label:"", settings:{}, hasMotion:false,
-               claimsMobile:/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent), frameIntervals:[] };
+               claimsMobile:/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent), frameIntervals:[],
+               frames:[], motion:[] };
 let lastT = 0, frameCount = 0;
+
+// ---- Check 4: liveness burst (gyro <-> video) ----
+// During BURST_MS the phone records low-res frames + devicemotion rotationRate
+// (deg/s on iOS and Android) on the same performance.now() clock. The server
+// checks that the picture shifts the way the gyroscope says the phone turned.
+const BURST_MS = 3000, BURST_FRAME_MS = 80, BURST_W = 320;
+let burstFrames = [];          // [{name, blob}] — matches meta.frames[i].file
+let recordingMotion = false;
+function onMotion(e){
+  const r = e.rotationRate; if(!r || r.alpha==null) return;
+  meta.hasMotion = true;
+  // rx = beta (about x, pitch), ry = gamma (about y, yaw), rz = alpha (about z)
+  if(recordingMotion) meta.motion.push({ t:performance.now(), rx:r.beta, ry:r.gamma, rz:r.alpha });
+}
+async function recordBurst(videoEl, hintEl){
+  burstFrames = []; meta.frames = []; meta.motion = [];
+  const c = document.createElement("canvas");
+  const vw = videoEl.videoWidth || 640, vh = videoEl.videoHeight || 480;
+  c.width = BURST_W; c.height = Math.round(vh * BURST_W / vw);
+  const ctx = c.getContext("2d");
+  const pending = [];
+  recordingMotion = true;
+  const t0 = performance.now();
+  let i = 0;
+  await new Promise(done => {
+    const tick = () => {
+      const now = performance.now();
+      if(now - t0 >= BURST_MS){ done(); return; }
+      const name = String(++i).padStart(4,"0") + ".jpg";
+      ctx.drawImage(videoEl, 0, 0, c.width, c.height);      // raw (unmirrored) pixels
+      meta.frames.push({ file:name, t:now });
+      pending.push(new Promise(res => c.toBlob(b => { burstFrames.push({name, blob:b}); res(); }, "image/jpeg", 0.7)));
+      const left = Math.ceil((BURST_MS - (now - t0)) / 1000);
+      hintEl.textContent = `Slowly tilt the phone left and right… ${left}`;
+      setTimeout(tick, BURST_FRAME_MS);
+    };
+    tick();
+  });
+  recordingMotion = false;
+  await Promise.all(pending);
+}
 
 async function stopStream(){ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }
 async function startCamera(videoEl, facing, collectMeta){
@@ -244,7 +286,7 @@ function cropToGuide(videoEl, canvasEl, guideEl, capLong=1200){
 $("begin").onclick = async () => {
   // user gesture: ask for motion (iOS) up front — "no motion on a phone" is an attack tell
   if (typeof DeviceMotionEvent?.requestPermission === "function"){ try{ await DeviceMotionEvent.requestPermission(); }catch(_){} }
-  window.addEventListener("devicemotion", e => { if(e.rotationRate && e.rotationRate.alpha!=null) meta.hasMotion=true; });
+  window.addEventListener("devicemotion", onMotion);
   show("idScreen");
   try { await startCamera($("idVideo"), {ideal:"environment"}, false); startFeed($("idVideo"), $("idFeed"), false); }
   catch(e){ $("idHint").textContent = "Camera error: " + e.message; }
@@ -269,13 +311,20 @@ $("idUse").onclick = async () => {
 
 // ---- SELFIE ----
 $("selfieShutter").onclick = async () => {
-  const out = await cropToGuide($("selfieVideo"), $("selfieFeed"), $("selfieGuide"), 900); if(!out) return; const {blob,url}=out; stopFeed();
+  if(recordingMotion) return;
+  $("selfieCapRow").hidden = true;
+  await recordBurst($("selfieVideo"), $("selfieHint"));       // 3 s: frames + gyro
+  const out = await cropToGuide($("selfieVideo"), $("selfieFeed"), $("selfieGuide"), 900);
+  if(!out){ $("selfieCapRow").hidden = false; return; }
+  const {blob,url}=out; stopFeed();
   selfieBlob = blob; $("selfieShot").src = url; $("selfieShot").hidden=false;
   $("selfieFeed").hidden=true; $("selfieHint").hidden=true;
   $("selfieCapRow").hidden=true; $("selfieConfirm").hidden=false;
 };
 $("selfieRetake").onclick = () => {
-  $("selfieShot").hidden=true; $("selfieFeed").hidden=false; startFeed($("selfieVideo"), $("selfieFeed"), true); $("selfieHint").hidden=false;
+  burstFrames=[]; meta.frames=[]; meta.motion=[];
+  $("selfieShot").hidden=true; $("selfieFeed").hidden=false; startFeed($("selfieVideo"), $("selfieFeed"), true);
+  $("selfieHint").textContent = "Center your face and tap the button"; $("selfieHint").hidden=false;
   $("selfieConfirm").hidden=true; $("selfieCapRow").hidden=false;
 };
 $("selfieUse").onclick = () => { stopFeed(); stopStream(); submit(); };
@@ -289,14 +338,15 @@ async function submit(){
     const fd = new FormData();
     fd.append("id_photo", idBlob, "id.jpg");
     fd.append("selfie", selfieBlob, "selfie.jpg");
+    for(const f of burstFrames) fd.append("frames", f.blob, f.name);
     fd.append("meta", JSON.stringify(meta));
     const res = await fetch(`/session/${s.session_id}/capture`,{method:"POST",body:fd}).then(r=>r.json());
     render(res);
-  } catch(e){ render({decision:"block", signals:{face:{reason:"network error: "+e.message}, integrity:{ok:true,flags:[]}}}); }
+  } catch(e){ render({decision:"block", signals:{face:{reason:"network error: "+e.message}, integrity:{ok:true,flags:[]}, motion:{}}}); }
 }
 
 function render(res){
-  const f = res.signals.face || {}, ig = res.signals.integrity || {};
+  const f = res.signals.face || {}, ig = res.signals.integrity || {}, mo = res.signals.motion || {};
   const box = $("resultBox"); box.className = "result " + res.decision;
   const title = {pass:"You're verified.", step_up:"One more step.", block:"We couldn't confirm it."}[res.decision] || res.decision;
   const sub = {pass:"Your identity is confirmed.", step_up:"Let's add a quick check — it's not a problem.",
@@ -309,10 +359,12 @@ function render(res){
   : `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="2.6" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg>`;
   const igtxt = ig.ok ? "clean" : "flags: "+(ig.flags||[]).join(", ");
   const dbg = f.debug ? ` · ID ${f.debug.id_face} / selfie ${f.debug.selfie_face}` : "";
-  $("resultMeta").textContent = `face ${f.score ?? "-"} (${f.verdict||f.reason||""}) · integrity ${igtxt}${dbg}`;
+  const motxt = mo.verdict ? `${mo.score ?? "-"} (${mo.verdict}${mo.lag_ms!=null?`, lag ${mo.lag_ms}ms`:""}${mo.reason?`, ${mo.reason}`:""})` : "-";
+  $("resultMeta").textContent = `face ${f.score ?? "-"} (${f.verdict||f.reason||""}) · integrity ${igtxt} · motion ${motxt}${res.mode==="naive"?" · NAIVE MODE":""}${dbg}`;
   show("resultScreen");
 }
 $("restart").onclick = () => { idBlob=selfieBlob=null; meta.frameIntervals=[]; meta.hasMotion=false;
+  burstFrames=[]; meta.frames=[]; meta.motion=[]; $("selfieHint").textContent = "Center your face and tap the button";
   $("idShot").hidden=true; $("idFeed").hidden=false; startFeed($("idVideo"), $("idFeed"), false); $("idHint").hidden=false; $("idConfirm").hidden=true; $("idCapRow").hidden=false;
   $("selfieShot").hidden=true; $("selfieFeed").hidden=false; startFeed($("selfieVideo"), $("selfieFeed"), true); $("selfieHint").hidden=false; $("selfieConfirm").hidden=true; $("selfieCapRow").hidden=false;
   show("intro"); };
