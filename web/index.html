@@ -121,10 +121,9 @@
   @keyframes nudge{50%{transform:translateY(-50%) translateX(var(--dx,0))}}
   .arrow.left{--dx:-10px}.arrow.right{--dx:10px}
   @media(prefers-reduced-motion:reduce){.arrow{animation:none}}
-  /* ID-beside-face slot: a card outline overlapping the circle's edge */
-  .guide.cardslot{width:46%;aspect-ratio:1.585;border-radius:10px;border:2px dashed rgba(255,255,255,.95);
-                  box-shadow:none;left:auto;right:6%;top:50%;transform:translateY(-50%)}
-  .guide.cardslot.onleft{right:auto;left:6%}
+  /* simple hold-in-left-hand reminder (check 6, simplified: only the head turn is verified) */
+  .id-hand-icon{position:absolute;left:8%;top:50%;transform:translateY(-50%);font-size:48px;line-height:1;
+                z-index:2;pointer-events:none;filter:drop-shadow(0 2px 8px rgba(0,0,0,.6))}
   .phone-tilt{position:absolute;left:50%;top:14%;transform:translateX(-50%);font-size:54px;line-height:1;z-index:2;pointer-events:none;
               animation:tilt 1.1s ease-in-out infinite;filter:drop-shadow(0 2px 8px rgba(0,0,0,.6))}
   @keyframes tilt{0%,100%{transform:translateX(-50%) rotate(-22deg)}50%{transform:translateX(-50%) rotate(22deg)}}
@@ -151,8 +150,8 @@
     </div>
     <div class="stack">
       <label class="toggle" for="killer">
-        <span><b>Killer feature: ID + profile turn</b>
-          <small>Adds a 3rd step: hold your ID next to your face and turn to the side we pick. Face-swaps break at a full profile.</small></span>
+        <span><b>Killer feature: profile turn</b>
+          <small>Adds one step: hold your ID in your left hand, then turn your head to the side we pick. Face-swaps break at a full profile.</small></span>
         <input type="checkbox" id="killer" checked><span class="switch" aria-hidden="true"></span>
       </label>
       <button class="btn" id="begin">Begin verification</button>
@@ -197,8 +196,8 @@
           <path id="selfieGuide" d="M118 208 C80 190 68 150 70 118 C72 74 108 38 150 38 C192 38 228 74 230 118 C232 150 220 190 182 208 L182 248 C216 258 256 278 274 318 C282 340 286 366 286 392 L14 392 C14 366 18 340 26 318 C44 278 84 258 118 248 L118 208 Z" fill="none" stroke="#fff" stroke-width="2.5" stroke-dasharray="7 6" stroke-linejoin="round"></path>
         </svg>
       </div>
-      <!-- combined guide for the ID + profile phase: card overlapping one eye -->
-      <div class="guide cardslot" id="cardSlot" hidden><span class="tick tl"></span><span class="tick tr"></span><span class="tick bl"></span><span class="tick br"></span></div>
+      <!-- profile-turn phase: a plain reminder to hold the ID, arrow shows which way to turn -->
+      <div class="id-hand-icon" id="idHandIcon" hidden aria-hidden="true">🪪</div>
       <div class="phone-tilt" id="tiltIcon" hidden aria-hidden="true">📱</div>
       <div class="arrow" id="profileArrow" hidden>➜</div>
       <div class="progress" id="liveProgress" hidden><i></i></div>
@@ -250,8 +249,10 @@ let lastT = 0, frameCount = 0;
 // where raw acceleration is the most informative channel) on one
 // performance.now() clock. The phase ends as soon as enough rotation has been
 // accumulated (min A_MIN_MS, max A_MAX_MS) so a lively user is done in ~2 s.
-// Phase B (check 6, only with the toggle on): "cover one eye with your ID and
-// turn <side>" — same stream, ~480 px frames, B_MS long. No confirm screens.
+// Phase B (check 6, only with the toggle on): "hold your ID in your LEFT hand,
+// turn your head <side>" — same stream, ~480 px frames, B_MS long. No confirm
+// screens. The ID-in-hand is a demo/UX instruction only; what is actually
+// verified is the head turn (yaw), the one signal confirmed on a real phone.
 const A_MIN_MS = 1500, A_MAX_MS = 4000, A_FRAME_MS = 80, A_W = 320, A_ROT_DEG = 35;
 const B_MS = 2800, B_FRAME_MS = 110, B_W = 480;
 let session = null;                       // {session_id, challenge, segment_ms, profile_side}
@@ -310,24 +311,24 @@ async function liveCapture(videoEl){
   meta.events.push({ name:"tilt_end", t:performance.now() });
   $("tiltIcon").hidden = true;
   if(!killerOn()){ recordingMotion = false; bar.hidden = true; return; }
-  // ---- Phase B: ID beside the face, cover one eye, turn to the server-picked side
+  // ---- Phase B: hold the ID in your left hand, turn your head to the server-picked side
   const side = (session && session.profile_side) || "left";
   meta.profile.enabled = true; meta.profile.side = side;
-  const slot = $("cardSlot"), arrow = $("profileArrow");
-  // The preview is mirrored, so the arrow points the way the user sees it; the
-  // card slot sits on the OPPOSITE side so the card stays in frame while they turn.
-  slot.className = "guide cardslot" + (side === "left" ? "" : " onleft"); slot.hidden = false;
+  const handIcon = $("idHandIcon"), arrow = $("profileArrow");
+  // The preview is mirrored, so both the hand icon and the arrow point/sit the
+  // way the user sees them in the mirror (their real left hand shows on the left).
+  handIcon.hidden = false;
   arrow.className = "arrow " + side; arrow.textContent = side === "left" ? "⬅" : "➡"; arrow.hidden = false;
-  hint.textContent = `Hold your ID over one eye, then turn ${side.toUpperCase()}`;
+  hint.textContent = `ID in your left hand · turn ${side.toUpperCase()}`;
   fill.style.width = "0%";
   meta.events.push({ name:"profile_start", t:performance.now() });
   const tB = performance.now();
   await grabFrames(videoEl, B_W, B_FRAME_MS, profileFrames, meta.profile.frames, "p",
     now => now - tB >= B_MS,
     now => { fill.style.width = (Math.min(1,(now-tB)/B_MS)*100).toFixed(0) + "%";
-             hint.textContent = `ID over one eye · turn ${side.toUpperCase()} all the way… ${Math.ceil((B_MS-(now-tB))/1000)}`; });
+             hint.textContent = `Turn ${side.toUpperCase()} all the way… ${Math.ceil((B_MS-(now-tB))/1000)}`; });
   meta.events.push({ name:"profile_end", t:performance.now() });
-  recordingMotion = false; slot.hidden = true; arrow.hidden = true; bar.hidden = true;
+  recordingMotion = false; handIcon.hidden = true; arrow.hidden = true; bar.hidden = true;
 }
 
 async function stopStream(){ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }
@@ -464,7 +465,7 @@ $("begin").onclick = async () => {
   $("selfieSteps").innerHTML = '<i class="on"></i><i class="on"></i>' + (total===3 ? '<i class="on"></i>' : '');
   $("selfieTitle").textContent = killerOn() ? "Selfie, tilt & ID turn" : "Selfie & live check";
   $("selfieCopy").innerHTML = killerOn()
-    ? "Face in the circle, tap once. Tilt the <b>phone</b>, then hold your ID over one eye and turn the way the arrow shows. About 6&nbsp;seconds."
+    ? "Face in the circle, tap once. Tilt the <b>phone</b>, then hold your ID in your left hand and turn your head the way the arrow shows. About 6&nbsp;seconds."
     : "Face in the circle, tap once. Then tilt the <b>phone</b> — about 3&nbsp;seconds.";
   show("idScreen");
   try { await startCamera($("idVideo"), {ideal:"environment"}, false); startFeed($("idVideo"), $("idFeed"), false); }
@@ -555,7 +556,7 @@ function render(res){
   const dbg = f.debug ? ` · ID ${f.debug.id_face} / selfie ${f.debug.selfie_face}` : "";
   const motxt = mo.verdict ? `${mo.score ?? "-"} (${mo.verdict}${mo.lag_ms!=null?`, lag ${mo.lag_ms}ms`:""}${mo.reason?`, ${mo.reason}`:""})` : "-";
   const pr = res.signals.profile || {};
-  const prtxt = !pr.enabled ? "off" : `${pr.score ?? "-"} (${pr.verdict}${pr.side?`, ${pr.side}`:""}${pr.peak_ok!=null?`, turn ${pr.peak_ok}`:""}${pr.card_frac!=null?`, card ${pr.card_frac}`:""}${pr.reason?`, ${pr.reason}`:""})`;
+  const prtxt = !pr.enabled ? "off" : `${pr.score ?? "-"} (${pr.verdict}${pr.side?`, ${pr.side}`:""}${pr.peak_ok!=null?`, turn ${pr.peak_ok}`:""}${pr.reason?`, ${pr.reason}`:""})`;
   $("resultMeta").textContent = `face ${f.score ?? "-"} (${f.verdict||f.reason||""}) · integrity ${igtxt} · motion ${motxt} · profile ${prtxt}${res.mode==="naive"?" · NAIVE MODE":""}${dbg}`;
   show("resultScreen");
 }
@@ -563,7 +564,7 @@ $("restart").onclick = () => { idBlob=idBackBlob=selfieBlob=null; idFrontUrl=nul
   session=null; burstFrames=[]; profileFrames=[]; meta.frames=[]; meta.motion=[]; meta.events=[];
   meta.profile={enabled:false, side:null, frames:[]}; selfieBlob=null;
   $("selfieHint").textContent="Center your face and tap the button"; $("selfieCapRow").hidden=false;
-  ["cardSlot","tiltIcon","profileArrow","liveProgress"].forEach(id=>$(id).hidden=true);
+  ["idHandIcon","tiltIcon","profileArrow","liveProgress"].forEach(id=>$(id).hidden=true);
   burstFrames=[]; meta.frames=[]; meta.motion=[]; $("selfieHint").textContent = "Center your face and tap the button";
   setIdSide("front"); resetIdCapture(); $("docBox").hidden=true;
   $("selfieFeed").hidden=false; $("selfieHint").hidden=false; $("selfieOverlay").hidden=false;

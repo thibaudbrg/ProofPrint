@@ -9,14 +9,16 @@
 
 ## 0. STATUS / LOG (update this after every change)
 
-**Last updated:** 2026-09-24 (evening) · by: Tibo's Claude session — PR #2 merged into `main`
-(`b5d1678`), then check 2 + audit log re-applied on top. **Note:** PR #2's rewrite had deleted
-`startCamera()`/`stopStream()` from `web/index.html` while still calling them (Begin threw) — restored.
+**Last updated:** 2026-09-24 (night) · by: Vasiliy's Claude session, branch
+`feat/simplify-killer-feature` off current `main` (which already has PR #1, PR #2, check 2,
+audit log and Tibo's startCamera fix). **Simplified check 6** per team decision: dropped ORB
+card-matching + occlusion-edge detection — unreliable on the first phone run and unvalidated
+complexity. The ID is now held in the left hand as a UX/demo cue only; the only thing scored
+is the head turn.
 
-**⚠ Ownership note:** `feat/motion-check` (merged) and `feat/profile-challenge` touch BOTH `server/` (check 4 +
-fusion + naive mode) AND `web/` (3 s liveness burst on the selfie shutter) AND
-`contract/` (frames + motion keys, `motion` signal shape). One feature, one PR —
-review it together before merging.
+**⚠ Ownership note:** touches `server/profile_check.py`, `server/main.py` (one call site),
+`web/index.html` (Phase B copy + guide only, Phase A/tilt untouched), `contract/contract.md`,
+this file. One feature, small diff — see the "Recent changes" entry below for the exact list.
 
 **What runs right now**
 - Server: FastAPI, auto-reload, on `:8000`. Start with `./dev.sh` (uvicorn --reload).
@@ -36,17 +38,18 @@ review it together before merging.
   with a still phone is now `insufficient` (step_up), NOT fail — that was the first phone
   run's false block. No MediaPipe needed (OpenCV only).
 - [x] **Naive mode** for Act 2: `PROOFPRINT_MODE=naive ./dev.sh` → decides on `face` only.
-- [x] **Check 6 — ID next to face + profile turn** ★ THE KILLER FEATURE (branch
-  `feat/profile-challenge`, v2 after the first phone run). Toggle on the intro screen
-  ("Killer feature", default ON). ONE continuous capture on the selfie screen: tilt phase
-  (check 4, ends early once ~35° of rotation is banked, 1.5–4 s) → "hold your ID over one eye
-  and turn <side>" phase (2.8 s) with a combined face-circle + card-slot guide → auto-submit.
-  No confirm screens. `server/profile_check.py`: yaw from YuNet landmarks, side compliance
-  vs the server nonce (wrong side → block), **ORB match of the step-1 ID photo** in every
-  frame (same document, not just "a rectangle"), **occlusion**: card must cross the face and
-  its edge must survive inside the face box (a swap paints over it → `card_edge_erased_over_face`),
-  face↔card colour temperature, snap-back. 34 tests green. First phone run: side sign
-  confirmed, `peak_ok=0.17` on a modest turn; card contour detector scored 0 → replaced by ORB.
+- [x] **Check 6 — profile turn** ★ THE KILLER FEATURE (branch `feat/simplify-killer-feature`,
+  v3, simplified 2026-09-24 night). Toggle on the intro screen ("Killer feature: profile
+  turn", default ON). ONE continuous capture on the selfie screen: tilt phase (check 4, ends
+  early once ~35° of rotation is banked, 1.5–4 s) → "ID in your left hand · turn <side>"
+  phase (2.8 s) → auto-submit. No confirm screens. `server/profile_check.py`: yaw from
+  YuNet landmarks only, side compliance vs the server nonce (wrong side → hard fail → block),
+  "face lost after trending the right way" = full profile, snap-back penalty. **v1/v2 also
+  tried ORB card matching + occlusion-edge detection — removed**: card detection scored 0 on
+  the first phone run (contour heuristic never found the card in venue light), and the extra
+  machinery added failure surface without a validated benefit. The ID-in-hand is now UX only;
+  the head turn is the one signal that was confirmed correct on a real phone
+  (`peak_ok=0.17` on a modest turn, correct side). 28 tests green.
 - [ ] **Check 5 — Light pulse** (flash random colours, skin must reflect them).
 - [x] **Check 2 — ID document** (`id_check.py`): de-skew → portrait crop (now what check 1 matches
   against) → MRZ via PassportEye + Tesseract with ICAO 9303 check digits **recomputed**, expiry
@@ -60,18 +63,19 @@ review it together before merging.
 - [ ] **APCER/BPCER** evaluation run.
 
 **Open TODO / next actions**
-0. **Live now:** `https://jvc-fisheries-six-utc.trycloudflare.com` (Vasiliy's Mac, uvicorn
+0. **Live now:** `https://clients-ignored-kids-lite.trycloudflare.com` (Vasiliy's Mac, uvicorn
    --reload on **:8010** + cloudflared; dies with that process — restart and update this line).
+   Quick tunnels have died twice tonight on their own (`Register tunnel error: Unauthorized:
+   Tunnel not found` after an idle gap) — only fix is a fresh `cloudflared` process (new URL).
+   Start it fresh right before the live demo; consider a named tunnel if it bites again.
 1. **Calibrate on phones** (what "phone-test" means: the code is complete, the THRESHOLDS
    were set on synthetic data — every real run either confirms them or moves them). Do 5
    genuine runs (2 phones, venue light) and paste the two log lines per run here:
    `[motion_check] verdict=… score=… gyro_rms=… acc_rms=… flow_rms=… method=…` — want
    score > 0.6, `method=lk_background`, `face_masked=True`; if `insufficient` the user tilted
    the head not the phone (the UI now nags + shows a tilting-phone icon).
-   `[profile_check] … peak_ok=… card_frac=… card_src=… occl_seen=… occl_q=…` — want
-   peak_ok ≥ 0.22 on a full turn (0.17 seen on a modest one), card_src mostly `orb`,
-   occl_seen True when the card really covers an eye. Knobs: `TURN_MIN/TURN_FULL`,
-   `ORB_MIN_MATCHES`, `OCCLUSION_MIN_OVERLAP`, `MIN_GYRO_RMS_DPS`.
+   `[profile_check] … peak_ok=… peak_wrong=…` — want peak_ok ≥ 0.22 on a full turn (0.17 seen
+   on a modest one) and peak_wrong small. Knobs: `TURN_MIN/TURN_FULL`, `MIN_GYRO_RMS_DPS`.
 2. **Attack runs** (own faces only): still deepfake via OBS while waving the phone; screen
    replay; phone on a stand (→ `stationary_device`). Record APCER/BPCER from 1 + 2.
 3. Calibrate face threshold on real ID-vs-selfie pairs (see `COSINE_MATCH`/`COSINE_LOW`).
@@ -83,11 +87,24 @@ review it together before merging.
 5. Check 5 (light pulse) still open; the `challenge` colours are minted but unused.
 
 **Recent changes**
+- **Check 6 simplified to v3** (`feat/simplify-killer-feature`, branched fresh off `main` after
+  PR #1 + PR #2 + check 2 + audit log all landed there). Removed: `CardTemplate`/ORB matching,
+  `_find_card`/`_find_card_contour`, `occlusion_edge_quality`, `_colour_temp`, the `id_bgr`
+  param on `profile_check.check()`. Score is now just turn quality minus a snap penalty
+  (`score = turn_q`, `−0.35` if a yaw-snap is seen). Web: Phase B copy changed from "hold your
+  ID over one eye" to "ID in your left hand", the mirrored card-slot guide replaced by a
+  static 🪪 icon (always shown on the left, since the instruction no longer depends on the
+  turn side), toggle label/description updated. `main.py` call site simplified (no `id_bgr`).
+  Result-screen meta line no longer references `card_frac`. 28 tests (down from 34 — the
+  removed ORB/occlusion tests deleted, not skipped). Rationale: `card_frac=0` on the first
+  phone run showed the contour detector didn't work in venue light, and the team decided the
+  fix (ORB) added complexity without a demo benefit — the head turn alone was already the
+  validated, working signal.
 - **PR #2 merged** (checks 4 v2 + 6). Reconciled on top of it: check 2, audit log, and the
   front-end polish (silhouette guide, dashed card frame, tap-to-focus, blur check, ID back-of-card
   step, document card, `object-fit:contain` preview). **Fix:** restored `startCamera`/`stopStream`
   (deleted by the v2 rewrite; Begin threw a ReferenceError). Fusion: no usable face → `block`
-  (was falling through); `id.flags` → step_up. 34 tests still green.
+  (was falling through); `id.flags` → step_up.
 - **v2 of checks 4 + 6 after the first phone run** (`feat/profile-challenge`): one
   continuous capture, no confirm screens, ~5–7 s total after the ID; combined face + card
   guide; tilt phase ends early on banked rotation; accelerometer + `events` in meta;
@@ -151,7 +168,7 @@ was physically live.
 | 3 · Capture integrity (virtual-cam, sensors) | mitigated | Partly (off-the-shelf tools) | ✅ |
 | 4 · **Gyroscope ↔ video** ★ | mitigated | **Yes** (the core) | ✅ code + synthetic tests · ⏳ phone calibration |
 | 5 · Light pulse (colour reflection) | mitigated | Mostly | ⏳ |
-| 6 · **ID next to face + profile turn** ★ | mitigated (toggle) | **Yes** — face-swaps warp at 90°, ghost on occlusion | ✅ code + tests · ⏳ phone calibration |
+| 6 · **Profile turn** ★ | mitigated (toggle) | **Yes** — face-swaps warp at ~90° | ✅ code + tests, side sign confirmed on a phone · ⏳ full calibration |
 
 **Deliberately NOT used:** iris (needs IR hardware), typing rhythm (no profile at
 first onboarding), mouse (no mouse on phone — its useful bit folds into check 3),
@@ -216,7 +233,7 @@ server/               ← Person A
   id_check.py         ← check 2 (deskew, portrait, MRZ + ICAO check digits, expiry)
   integrity_check.py  ← check 3
   motion_check.py     ← check 4 (gyro ↔ video, background flow + lag search)
-  profile_check.py    ← check 6 (ID + profile turn: yaw from YuNet landmarks, card, lighting)
+  profile_check.py    ← check 6 (profile turn: yaw from YuNet landmarks, side-nonce, snap-back)
   audit_log.py        ← SQLite log of scores per session (first name only) + GET /log
   data/               ← proofprint.db lives here (gitignored)
   tests/              ← pytest: synthetic pan renderer + e2e via TestClient
@@ -265,18 +282,19 @@ if missing. Camera needs HTTPS — that's why the tunnel exists.
   (from synthetic tests — calibrate on phones). Still video + moving phone → fail; moving
   video + still phone → fail; nothing moved → insufficient (step_up, "please tilt").
   Head-pose (MediaPipe) was NOT needed; revisit only if background-less scenes break flow.
-- **Check 6 (built, v2):** score = 0.45·turn + 0.20·card(ORB vs step-1 ID) + 0.20·occlusion-edge
-  + 0.15·lighting − 0.2·snap. Occlusion-edge = fraction of the card boundary INSIDE the face
-  box that is still a Canny edge (swap paints over the occluder → edge gone).
-  Yaw proxy = (nose_x − eye_mid_x) / face_w from YuNet's 5 landmarks
-  (frontal ≈ 0, ~45° ≈ 0.15; YuNet usually loses the face near 90°, which counts as "reached
-  profile" if the last frames trended the right way). `SIDE_SIGN={"left":+1,"right":-1}` for
-  RAW (unmirrored) front-camera frames — flip if a phone test disagrees. `TURN_MIN=0.12`,
-  `TURN_FULL=0.22`, score = 0.6·turn + 0.25·card_seen + 0.15·lighting − 0.2·snap;
-  `SCORE_PASS=0.55`, `SCORE_REVIEW=0.30`. Wrong side is a hard fail regardless of score.
-  Why this is the killer: DeepFaceLive-class tools map only 50–60 % of landmarks in profile
-  and warp at 90°; a card crossing the face ghosts at the mask edge; the side is a nonce so a
-  pre-recorded clip can't follow it; human video-ident agents already ask for exactly this.
+- **Check 6 (built, v3, simplified):** score = `turn_q` (peak yaw / `TURN_FULL`, clipped to 1)
+  minus `0.35` if a yaw-snap is seen. Yaw proxy = (nose_x − eye_mid_x) / face_w from YuNet's
+  5 landmarks (frontal ≈ 0, ~45° ≈ 0.15; YuNet usually loses the face near 90°, which counts
+  as "reached profile" if the last frames trended the right way). `SIDE_SIGN={"left":+1,
+  "right":-1}` for RAW (unmirrored) front-camera frames — confirmed correct on a real phone
+  2026-09-24. `TURN_MIN=0.12`, `TURN_FULL=0.22`, `SCORE_PASS=0.60`, `SCORE_REVIEW=0.35`. Wrong
+  side is a hard fail regardless of score, and is judged against the SERVER's own session
+  nonce, never the client's claim. **Card detection removed** (see Recent changes) — the ID
+  is held in the left hand as a UX/demo cue only; nothing about the card is verified.
+  Why this is still the killer signal: DeepFaceLive-class tools map only 50–60 % of landmarks
+  in profile and warp at ~90°; the side is a nonce so a pre-recorded clip can't follow it;
+  human video-ident agents already ask for a profile turn, so it reads as legitimate, not
+  exotic, to Swisscom's validation specialists.
 - **Check 5 (planned):** server mints random colour seq; skin ROI ÷ background;
   daylight → low SNR → step-up (not fail). Overlaps iProov patent → pitch as fusion.
 

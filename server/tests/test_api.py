@@ -73,8 +73,7 @@ def _profile_post(client, monkeypatch, yaw_track, enabled=True, side_override=No
                         lambda bgr: (lambda y: None if y is None else
                                      {"x": 10, "y": 10, "w": 100, "h": 120,
                                       "eyes": ((30, 40), (90, 40)), "nose": (60 + y * 100, 80),
-                                      "score": 0.9, "img": bgr})(next(it)))
-    monkeypatch.setattr(profile_check, "_find_card", lambda img, face, tpl=None: ((150, 20, 120, 76), None, "contour"))
+                                      "score": 0.9})(next(it)))
     s = client.post("/session").json()
     assert s["profile_side"] in ("left", "right")
     sid = s["session_id"]

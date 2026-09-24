@@ -108,8 +108,7 @@ async def capture(sid: str,
         img = face_match.imdecode(await uf.read())
         if t is not None and img is not None:
             pburst.append((float(t), img))
-    profile = profile_check.check(pburst, SESSIONS[sid].get("profile_side"), prof_enabled,
-                                  id_bgr=id_img)
+    profile = profile_check.check(pburst, SESSIONS[sid].get("profile_side"), prof_enabled)
 
     # Fusion. The naive app (Act 2) reads `face` only. The mitigated app also
     # weighs integrity + motion + profile: a known virtual camera, a video that
