@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Check-5 lab</title>
+<style>
+  :root{color-scheme:light;--bg:#F5F4F0;--panel:#fff;--ink:#15191B;--ink2:#5B616B;--line:#E3E7E5;
+        --r:#D23B2C;--g:#1E9A4B;--b:#2E44E6;--pass:#1E7A47;--warn:#B26B0C;--fail:#C13B2C}
+  *{box-sizing:border-box} [hidden]{display:none!important}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,sans-serif;font-size:13px}
+  .wrap{max-width:1400px;margin:0 auto;padding:18px 20px 40px}
+  header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+  h1{font-size:20px;margin:0} h2{font-size:13px;margin:0 0 6px;color:var(--ink2);text-transform:uppercase;letter-spacing:.06em}
+  .mono{font-family:ui-monospace,monospace;font-variant-numeric:tabular-nums}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .wide{grid-column:1/-1}
+  .kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px}
+  .kv div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--line);padding:3px 0}
+  .kv span:first-child{color:var(--ink2)}
+  .verdict{font-size:26px;font-weight:800;padding:6px 14px;border-radius:10px;background:#EEF0EC}
+  .pass{color:var(--pass)}.review,.insufficient,.absent{color:var(--warn)}.fail{color:var(--fail)}
+  svg{width:100%;height:auto;display:block}
+  .legend{display:flex;gap:14px;font-size:12px;color:var(--ink2);margin-bottom:4px;flex-wrap:wrap}
+  .legend i{display:inline-block;width:18px;height:3px;vertical-align:middle;margin-right:5px;border-radius:2px}
+  table{border-collapse:collapse;width:100%;font-size:12.5px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+  th{color:var(--ink2);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  tr.sel td{background:#EEF2FF} tr{cursor:pointer}
+  .pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:600;background:#EEF0EC}
+  .live{display:inline-flex;align-items:center;gap:6px;color:var(--ink2)}.live b{width:8px;height:8px;border-radius:50%;background:var(--pass);display:inline-block}
+  button{font:inherit;border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 10px;cursor:pointer}
+  a{color:var(--ink2)}
+  .empty{color:var(--ink2);padding:40px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Check-5 lab — screen colours ↔ skin</h1>
+    <span class="live"><b></b> polling <code>/lab/light/latest</code> every 1 s</span>
+    <a href="/lab">check-4 lab →</a>
+    <span style="flex:1"></span>
+    <span class="mono" id="phoneUrl"></span>
+    <button id="clear">clear runs</button>
+  </header>
+
+  <div id="empty" class="empty">No runs yet. On the phone open <code>&lt;tunnel&gt;/lab/light/phone</code>, tap <b>Start camera</b>, then <b>Run light check</b>.</div>
+
+  <div id="main" hidden>
+    <div class="grid">
+      <div class="panel wide" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+        <span class="verdict" id="verdict">—</span>
+        <div class="kv" style="flex:1" id="headline"></div>
+      </div>
+
+      <div class="panel wide">
+        <h2>Sequence shown (top) vs colour the skin answered per slot (bottom, at the fitted lag) — d = median chroma shift (R,G,B)</h2>
+        <div id="strip"></div>
+      </div>
+
+      <div class="panel wide">
+        <h2>Chroma response · z − guard baseline per channel, background shaded with the colour on screen (dots = frames masked near a switch)</h2>
+        <div class="legend"><span><i style="background:var(--r)"></i>R</span><span><i style="background:var(--g)"></i>G</span><span><i style="background:var(--b)"></i>B</span><span>expected: the on-screen channel goes UP (+⅔·k), the two others DOWN (−⅓·k)</span></div>
+        <div id="chZ"></div>
+      </div>
+
+      <div class="panel">
+        <h2>ρ vs camera lag — the sweep (best marked; dashed = the ρ that alone yields PASS; shaded = plausible lag)</h2>
+        <div id="chLag"></div>
+      </div>
+      <div class="panel">
+        <h2>Raw face / background log-chroma (no baseline) — drift here is AE/AWB, cancelled above</h2>
+        <div class="legend"><span><i style="background:var(--r)"></i>z_R</span><span><i style="background:var(--g)"></i>z_G</span><span><i style="background:var(--b)"></i>z_B</span><span><i style="background:#999"></i>baseline (interpolated guards)</span></div>
+        <div id="chRaw"></div>
+      </div>
+
+      <div class="panel"><h2>Numbers</h2><div class="kv" id="numbers"></div></div>
+      <div class="panel"><h2>Timing &amp; capture</h2><div class="kv" id="timing"></div></div>
+
+      <div class="panel wide"><h2>Runs (click to inspect)</h2><table><thead><tr>
+        <th>#</th><th>time</th><th>label</th><th>verdict</th><th>score</th><th>ρ</th><th>acc</th><th>p</th><th>snr</th><th>amp</th><th>lag</th><th>bg</th><th>fps</th><th>grab</th><th>flags</th>
+      </tr></thead><tbody id="runs"></tbody></table></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+$("phoneUrl").textContent = location.origin.replace(/^http:\/\/(localhost|127\.0\.0\.1)/, "<tunnel>") + "/lab/light/phone";
+let currentId = null, pinnedId = null;
+const RGB = { grey:"#808080", black:"#000", red:"#f00", green:"#0f0", blue:"#00f" };
+const SHADE = { grey:"#F1F1F1", black:"#E6E6E6", red:"#FDE3E0", green:"#E1F5E7", blue:"#E3E8FC" };
+
+// ---- SVG line chart with optional background bands and point markers ----
+function chart(el, x, series, {h=200, ylines=[], xlabel="ms", marker=null, sym=false, bands=[], xband=null, dots=null} = {}){
+  const W = 900, H = h, L = 48, R = 10, T = 10, B = 26;
+  const xmin = Math.min(...x), xmax = Math.max(...x);
+  let ymin = Infinity, ymax = -Infinity;
+  series.forEach(s => s.y.forEach(v => { if(v!=null && isFinite(v)){ ymin=Math.min(ymin,v); ymax=Math.max(ymax,v);} }));
+  ylines.forEach(l => { ymin=Math.min(ymin,l.v); ymax=Math.max(ymax,l.v); });
+  if(sym){ const m = Math.max(Math.abs(ymin),Math.abs(ymax)); ymin=-m; ymax=m; }
+  if(!isFinite(ymin) || ymin===ymax){ ymin=(ymin||0)-1; ymax=(ymax||0)+1; }
+  const pad=(ymax-ymin)*0.06; ymin-=pad; ymax+=pad;
+  const X = v => L + (v-xmin)/(xmax-xmin||1)*(W-L-R), Y = v => T + (ymax-v)/(ymax-ymin)*(H-T-B);
+  let g = `<svg viewBox="0 0 ${W} ${H}">`;
+  bands.forEach(b => g += `<rect x="${X(b.x0)}" y="${T}" width="${Math.max(0,X(b.x1)-X(b.x0))}" height="${H-T-B}" fill="${b.color}"/>`);
+  if(xband) g += `<rect x="${X(xband[0])}" y="${T}" width="${Math.max(0,X(xband[1])-X(xband[0]))}" height="${H-T-B}" fill="#E1F5E7" opacity=".7"/>`;
+  for(let i=0;i<=4;i++){ const v = ymin+(ymax-ymin)*i/4; g += `<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="#E4E6E4"/><text x="${L-6}" y="${Y(v)+4}" text-anchor="end" font-size="10" fill="#5B616B">${v.toFixed(Math.abs(ymax-ymin)<5?3:0)}</text>`; }
+  if(ymin<0&&ymax>0) g += `<line x1="${L}" x2="${W-R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#B9BDB9"/>`;
+  for(let i=0;i<=6;i++){ const v = xmin+(xmax-xmin)*i/6; g += `<text x="${X(v)}" y="${H-8}" text-anchor="middle" font-size="10" fill="#5B616B">${v.toFixed(0)}${i===6?" "+xlabel:""}</text>`; }
+  ylines.forEach(l => g += `<line x1="${L}" x2="${W-R}" y1="${Y(l.v)}" y2="${Y(l.v)}" stroke="${l.color||'#999'}" stroke-dasharray="5 4"/><text x="${W-R-2}" y="${Y(l.v)-3}" text-anchor="end" font-size="10" fill="${l.color||'#999'}">${l.label||''}</text>`);
+  if(marker!=null) g += `<line x1="${X(marker)}" x2="${X(marker)}" y1="${T}" y2="${H-B}" stroke="#15191B" stroke-dasharray="3 3"/>`;
+  series.forEach(s => { const pts = s.y.map((v,i)=> v==null||!isFinite(v)?null:`${X(x[i]).toFixed(1)},${Y(v).toFixed(1)}`).filter(Boolean).join(" ");
+    g += `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="${s.width||2}" ${s.dash?`stroke-dasharray="${s.dash}"`:""} stroke-linejoin="round"/>`;
+    if(dots) s.y.forEach((v,i) => { if(dots[i] && v!=null) g += `<circle cx="${X(x[i])}" cy="${Y(v)}" r="2.6" fill="#fff" stroke="${s.color}"/>`; }); });
+  el.innerHTML = g + "</svg>";
+}
+const kv = (el, obj) => el.innerHTML = Object.entries(obj).map(([k,v]) => `<div><span>${k}</span><span class="mono">${v==null?"—":v}</span></div>`).join("");
+
+function renderStrip(run){
+  const o = run.official || {}, ch = run.challenge || {slots:[],dur_ms:[]}, segs = o.per_segment || [];
+  const total = ch.dur_ms.reduce((a,b)=>a+b,0) || 1;
+  let top = "", bottom = "";
+  let x = 0;
+  ch.slots.forEach((s, i) => {
+    const w = ch.dur_ms[i] / total * 100;
+    top += `<div style="width:${w}%;background:${RGB[s]};height:30px;border-right:2px solid #fff;display:flex;align-items:flex-end;justify-content:center;color:${s==='grey'||s==='green'?'#000':'#fff'};font-size:11px">${ch.dur_ms[i]}</div>`;
+    const seg = segs.find(z => z.slot === i);
+    let inner = "", bg = "#F1F1F1";
+    if(seg){ if(seg.ok == null) inner = `<span style="color:#B26B0C">? n=${seg.n}</span>`;
+             else { bg = RGB[seg.pred]; inner = `<b style="color:${seg.pred==='green'?'#000':'#fff'}">${seg.ok?'✓':'✗'}</b><span class="mono" style="font-size:10px;color:${seg.pred==='green'?'#000':'#fff'}">${seg.d.map(v=>(v>=0?'+':'')+v.toFixed(3)).join(' ')}<br>n=${seg.n}</span>`; } }
+    bottom += `<div style="width:${w}%;background:${bg};height:44px;border-right:2px solid #fff;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.2">${inner}</div>`;
+    x += w;
+  });
+  $("strip").innerHTML = `<div style="display:flex">${top}</div><div style="display:flex;margin-top:4px">${bottom}</div>`;
+}
+
+function render(run){
+  const o = run.official || {}, t = run.timing || {}, th = run.thresholds || {}, s = o.series;
+  $("verdict").textContent = o.verdict || "—"; $("verdict").className = "verdict " + (o.verdict||"");
+  kv($("headline"), { run:`#${run.id} · ${run.at}`, label:run.label, score:o.score, "ρ (mean per-channel Pearson)":o.rho, "acc (slots right)":o.acc==null?null:`${Math.round(o.acc*6)}/6`,
+                       "p (permutation)":o.p, "SNR":o.snr, "lag (ms)":o.lag_ms, flags:(o.flags||[]).join(", ")||"none" });
+  renderStrip(run);
+  if(!s){ ["chZ","chLag","chRaw"].forEach(id=>$(id).innerHTML=`<div class="empty">no curves — ${(o.flags||[]).join(", ")||"check failed early"}</div>`); kv($("numbers"),{}); kv($("timing"),{}); return; }
+  const shift = o.lag_fit_ms || 0;
+  const bands = s.edges_ms.slice(0,-1).map((e,i) => ({ x0:e+shift, x1:s.edges_ms[i+1]+shift, color:SHADE[s.slots[i]]||"#eee" }));
+  const M = [0,1,2].map(c => s.z.map((z,i) => z[c]-s.base[i][c]));
+  const masked = s.used.map(u => !u);
+  chart($("chZ"), s.t_ms, [{y:M[0],color:"var(--r)"},{y:M[1],color:"var(--g)"},{y:M[2],color:"var(--b)"}], {h:230, sym:true, bands, dots:masked, xlabel:"ms since first switch (bands shifted by fitted lag)"});
+  const lc = o.lag_curve || {lag_ms:[],rho:[]};
+  chart($("chLag"), lc.lag_ms, [{y:lc.rho,color:"#15191B",width:2.5}], {h:200, ylines:[{v:0.8,label:"ρ 0.8 → full credit",color:"#1E7A47"},{v:0,label:"",color:"#bbb"}], marker:o.lag_fit_ms, xband:th.LAG_OK, xlabel:"ms lag (camera later than screen →)"});
+  chart($("chRaw"), s.t_ms, [{y:s.z.map(z=>z[0]),color:"var(--r)"},{y:s.z.map(z=>z[1]),color:"var(--g)"},{y:s.z.map(z=>z[2]),color:"var(--b)"},
+                              {y:s.base.map(b=>b[0]),color:"#999",width:1,dash:"4 3"},{y:s.base.map(b=>b[1]),color:"#999",width:1,dash:"4 3"},{y:s.base.map(b=>b[2]),color:"#999",width:1,dash:"4 3"}], {h:200, bands, xlabel:"ms"});
+  kv($("numbers"), { "amplitude A (median ‖d‖)":o.amp, "σ (frame noise, MAD)":o.sigma, "SNR = A/σ":o.snr, "background reference":o.bg_reference,
+    "frames total / with face":`${o.n_frames} / ${o.n_face_frames}`, "skin px / bg px (median)":`${o.skin_px} / ${o.bg_px}`, "lag fit / estimate":`${o.lag_fit_ms} / ${o.lag_ms} ms`,
+    "SCORE_PASS / REVIEW":`${th.SCORE_PASS} / ${th.SCORE_REVIEW}`, "P_MAX":th.P_MAX, "SNR_MIN / A_MIN":`${th.SNR_MIN} / ${th.A_MIN}`, "LAG_OK":(th.LAG_OK||[]).join("–")+" ms",
+    "mask after / before switch":`${th.POST_MS} / ${th.PRE_MS} ms`, "min frames per slot":th.MIN_FR_SLOT, "min colour slots":th.MIN_COLOUR_SLOTS });
+  const cc = t.client_checks || {}, gr = t.grab || {}, rf = t.raf || {}, cl = t.cam_lock || {}, dp = t.display || {};
+  kv($("timing"), { "grab mode":gr.mode, "fps (median) / p90 gap":`${t.fps} / ${t.gap_p90_ms} ms`, "capture (ms)":t.capture_ms, "captureTime present":t.t_cap_present,
+    "rAF median / jank":`${rf.median_ms} ms / ${rf.jank}`, "slot err max (painted − planned)":t.slot_err_max_ms==null?null:t.slot_err_max_ms+" ms",
+    "client checks ok":cc.ok, "switch err / dur err":`${cc.max_switch_err_ms} / ${cc.max_dur_err_ms} ms`, "min frames per seg":cc.min_frames_per_seg, "tab hidden":t.hidden,
+    "cam lock (exp / wb)":`${cl.exposure} / ${cl.white_balance}`, "display":`${dp.vw}×${dp.vh} @${dp.dpr}${dp.reduced_motion?" · reduced motion":""}`,
+    "device":`${(run.device||{}).label||"?"}`, "UA":(run.device||{}).ua });
+}
+function renderRuns(runs){
+  $("runs").innerHTML = runs.map(r => `<tr data-id="${r.id}" class="${r.id===(pinnedId??currentId)?'sel':''}"><td class="mono">${r.id}</td><td class="mono">${r.at}</td><td>${r.label}</td>
+    <td><span class="pill ${r.verdict}">${r.verdict}</span></td><td class="mono">${r.score??"—"}</td><td class="mono">${r.rho??"—"}</td><td class="mono">${r.acc??"—"}</td><td class="mono">${r.p??"—"}</td>
+    <td class="mono">${r.snr??"—"}</td><td class="mono">${r.amp??"—"}</td><td class="mono">${r.lag_ms??"—"}</td><td class="mono">${r.bg==null?"—":r.bg?"yes":"no"}</td><td class="mono">${r.fps??"—"}</td><td class="mono">${r.mode??"—"}</td><td class="mono">${(r.flags||[]).join(", ")}</td></tr>`).join("");
+  $("runs").querySelectorAll("tr").forEach(tr => tr.onclick = async () => { pinnedId = +tr.dataset.id; render(await fetch(`/lab/light/${pinnedId}`).then(x=>x.json())); renderRuns(runs); });
+}
+async function poll(){
+  try {
+    const d = await fetch("/lab/light/latest").then(x=>x.json());
+    if(!d.run){ $("empty").hidden=false; $("main").hidden=true; return; }
+    $("empty").hidden=true; $("main").hidden=false;
+    if(d.run.id !== currentId){ currentId = d.run.id; pinnedId = null; render(d.run); }
+    renderRuns(d.runs);
+  } catch(_){}
+}
+$("clear").onclick = async () => { await fetch("/lab/light",{method:"DELETE"}); currentId=null; pinnedId=null; poll(); };
+poll(); setInterval(poll, 1000);
+</script>
+</body>
+</html>

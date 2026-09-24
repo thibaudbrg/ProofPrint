@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   integrity_flags TEXT,               -- JSON list
   motion_score    REAL,               -- check 4, NULL until frames are sent
   motion_verdict  TEXT,
+  light_score     REAL,               -- check 5, NULL when off / skipped
+  light_verdict   TEXT,
   platform        TEXT,               -- phone | desktop
   camera_label    TEXT,
   pipeline        TEXT                -- git short SHA of the code that scored it
@@ -44,7 +46,10 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 COLUMNS = ("session_id", "created_at", "first_name", "decision", "face_score", "face_verdict",
            "doc_type", "id_flags", "integrity_ok", "integrity_flags", "motion_score",
-           "motion_verdict", "platform", "camera_label", "pipeline")
+           "motion_verdict", "light_score", "light_verdict", "platform", "camera_label", "pipeline")
+
+# Columns added after the first deployment; ALTERed in when an older DB is opened.
+MIGRATIONS = {"light_score": "REAL", "light_verdict": "TEXT"}
 
 
 def _connect() -> sqlite3.Connection:
@@ -52,6 +57,10 @@ def _connect() -> sqlite3.Connection:
     con = sqlite3.connect(DB_PATH)
     con.execute("PRAGMA journal_mode=WAL")
     con.execute(SCHEMA)
+    have = {r[1] for r in con.execute("PRAGMA table_info(sessions)")}
+    for col, typ in MIGRATIONS.items():
+        if col not in have:
+            con.execute(f"ALTER TABLE sessions ADD COLUMN {col} {typ}")
     return con
 
 
@@ -80,6 +89,7 @@ def record(session_id: str, result: dict, meta: dict) -> Optional[int]:
         s = result.get("signals", {})
         face, idsig = s.get("face") or {}, s.get("id") or {}
         integ, motion = s.get("integrity") or {}, s.get("motion") or {}
+        light = s.get("light") or {}
         row = {
             "session_id": session_id,
             "created_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
@@ -93,6 +103,8 @@ def record(session_id: str, result: dict, meta: dict) -> Optional[int]:
             "integrity_flags": json.dumps(integ.get("flags") or []),
             "motion_score": motion.get("score"),
             "motion_verdict": motion.get("verdict"),
+            "light_score": light.get("score") if light.get("enabled") else None,
+            "light_verdict": light.get("verdict") if light.get("enabled") else None,
             "platform": "phone" if (meta or {}).get("claimsMobile") else "desktop",
             "camera_label": (meta or {}).get("label") or None,
             "pipeline": _git_sha(),

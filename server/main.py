@@ -15,6 +15,7 @@ Run:
 from __future__ import annotations
 import secrets
 import json
+import time
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -24,15 +25,16 @@ import audit_log
 import face_match
 import id_check
 import integrity_check
+import lab
+import light_check
 import motion_check
 import profile_check
 
 app = FastAPI(title="Proofprint")
+app.include_router(lab.router)        # /lab — check-4 + check-5 debugging dashboards, isolated from the flow
 
 # In-memory session store. Fine for a hackathon; swap for SQLite later.
 SESSIONS: dict[str, dict] = {}
-
-COLORS = ["black", "red", "green", "blue"]
 
 # Demo switch. PROOFPRINT_MODE=naive = the "broken app" of Act 2: decide on the
 # face match only, ignore every liveness signal (they are still computed and
@@ -42,19 +44,62 @@ NAIVE = os.environ.get("PROOFPRINT_MODE", "full").lower() == "naive"
 
 @app.post("/session")
 def start_session():
-    """Step: start a session and mint a random light challenge.
+    """Step: start a session and mint the per-session nonces.
 
-    The challenge is unused by the skeleton (check 5 will consume it), but it is
-    minted here now so the contract is stable and the phone can flash it today.
+    Check 6: the side of the profile turn is minted here and judged against the
+    SERVER's copy, never the client's. Check 5's colour sequence is NOT minted here:
+    the phone asks for it just in time (POST /session/{sid}/light) so it cannot be
+    pre-computed.
     """
     sid = secrets.token_hex(4)
-    challenge = [secrets.choice(COLORS) for _ in range(5)]
-    # Check 6: the side of the profile turn is a per-session nonce, minted here
-    # and judged against the SERVER's copy, never the client's.
     profile_side = secrets.choice(["left", "right"])
-    SESSIONS[sid] = {"challenge": challenge, "profile_side": profile_side, "result": None}
-    return {"session_id": sid, "challenge": challenge, "segment_ms": 500,
-            "profile_side": profile_side}
+    SESSIONS[sid] = {"profile_side": profile_side, "light": None, "result": None}
+    return {"session_id": sid, "profile_side": profile_side}
+
+
+@app.post("/session/{sid}/light")
+def mint_light(sid: str):
+    """Check 5: mint the colour sequence just in time (single use, short TTL).
+
+    Called when the user taps Start on the light instruction screen. Re-minting
+    replaces the previous challenge (a retry after client-side jank). The server
+    judges the upload against ITS stored copy, never the echoed names.
+    """
+    if sid not in SESSIONS:
+        raise HTTPException(404, "unknown session")
+    ch = light_check.mint()
+    cid = "lc_" + secrets.token_hex(4)
+    SESSIONS[sid]["light"] = {"id": cid, "challenge": ch, "minted": time.time(), "used": False}
+    return light_check.to_client(ch, cid)
+
+
+def _light_signal(sid: str, meta_obj: dict, lframes: list, enabled: bool) -> dict:
+    """Check 5 verdict for this capture, or the neutral 'absent' signal when the check is off."""
+    lm = meta_obj.get("light") or {}
+    if not enabled:
+        return {"ok": True, "verdict": "absent", "enabled": False, "score": 0.0}
+    if lm.get("opted_out"):
+        # Photosensitivity opt-out: never a penalty, but not a liveness proof either.
+        return {"ok": False, "verdict": "skipped", "enabled": True, "opted_out": True, "score": 0.0, "flags": []}
+    if not lm:
+        return {"ok": False, "verdict": "absent", "enabled": True, "score": 0.0, "flags": ["no_light_meta"]}
+    stored = SESSIONS[sid].get("light")
+    if not stored or stored["id"] != lm.get("challenge_id"):
+        return {"ok": False, "verdict": "fail", "enabled": True, "score": 0.0, "flags": ["challenge_unknown"]}
+    if stored["used"]:
+        return {"ok": False, "verdict": "fail", "enabled": True, "score": 0.0, "flags": ["challenge_reused"]}
+    stored["used"] = True
+    total_s = sum(stored["challenge"]["dur_ms"]) / 1000
+    expired = time.time() - stored["minted"] > total_s + light_check.CHALLENGE_TTL_S
+    sig = light_check.check(lframes, light_check.colour_log_from_meta(lm), stored["challenge"])
+    sig["enabled"] = True
+    sig["attempt"] = lm.get("attempt")
+    sig["client_checks"] = lm.get("client_checks")
+    if expired:
+        sig["flags"] = list(sig.get("flags", [])) + ["challenge_expired"]
+        if sig["verdict"] == "pass":
+            sig["verdict"], sig["ok"] = "review", False
+    return sig
 
 
 @app.post("/session/{sid}/capture")
@@ -64,7 +109,8 @@ async def capture(sid: str,
                   id_back: UploadFile | None = File(None),
                   meta: str = Form(None),
                   frames: list[UploadFile] = File(default=[]),
-                  profile_frames: list[UploadFile] = File(default=[])):
+                  profile_frames: list[UploadFile] = File(default=[]),
+                  light_frames: list[UploadFile] = File(default=[])):
     """Receive the document photo(s) + selfie (+ liveness bursts + metadata), score, decide."""
     if sid not in SESSIONS:
         raise HTTPException(404, "unknown session")
@@ -86,6 +132,13 @@ async def capture(sid: str,
         meta_obj = {}
     integ = integrity_check.check(meta_obj)
 
+    # Demo switches from the intro screen. `mode: naive` = the broken app of Act 2;
+    # `checks.motion: false` = the phone-move check was switched off, so its absence
+    # must not count against the user. (PROOFPRINT_MODE=naive still forces naive.)
+    checks = meta_obj.get("checks") or {}
+    naive = NAIVE or meta_obj.get("mode") == "naive"
+    motion_enabled = bool(checks.get("motion", True))
+
     # Check 4 — gyroscope <-> video. Frame timestamps come from meta.frames
     # (matched by filename); the JPEGs come as repeated `frames` parts.
     t_by_name = {f.get("file"): f.get("t") for f in (meta_obj.get("frames") or [])}
@@ -95,7 +148,10 @@ async def capture(sid: str,
         img = face_match.imdecode(await uf.read())
         if t is not None and img is not None:
             burst.append((float(t), img))
-    motion = motion_check.check(meta_obj.get("motion"), burst)
+    if motion_enabled:
+        motion = motion_check.check(meta_obj.get("motion"), burst)
+    else:
+        motion = {"ok": True, "verdict": "absent", "enabled": False, "score": 0.0}
 
     # Check 6 — ID next to face + profile turn (the killer feature). Only when
     # the client enabled it; the expected side comes from the session, not meta.
@@ -111,28 +167,44 @@ async def capture(sid: str,
     profile = profile_check.check(pburst, SESSIONS[sid].get("profile_side"), prof_enabled,
                                   id_bgr=id_img)
 
+    # Check 5 — light pulse: skin must reflect the colours the screen showed. Frames
+    # come as `light_frames` parts matched to meta.light.frames[].file (grab time `t`;
+    # the fitted lag absorbs the constant pipeline delay). Enabled when the intro
+    # switch says so (older clients: only if they sent meta.light at all).
+    light_enabled = bool(checks.get("light", "light" in meta_obj))
+    lt_by_name = {f.get("file"): f.get("t") for f in ((meta_obj.get("light") or {}).get("frames") or [])}
+    lburst = []
+    for uf in light_frames:
+        t = lt_by_name.get(uf.filename)
+        img = face_match.imdecode(await uf.read())
+        if t is not None and img is not None:
+            lburst.append((float(t), img))
+    light = _light_signal(sid, meta_obj, sorted(lburst, key=lambda x: x[0]), light_enabled)
+
     # Fusion. The naive app (Act 2) reads `face` only. The mitigated app also
-    # weighs integrity + motion + profile: a known virtual camera, a video that
-    # does not move with the phone, or a turn to the wrong side -> block; a
-    # suspicious-but-not-damning capture -> step up, never a silent pass.
-    # (check 5 light plugs in here next.)
-    prof_v = profile["verdict"]
-    if NAIVE:
+    # weighs integrity + motion + light + profile: a known virtual camera, a video
+    # that does not move with the phone, skin that answers the WRONG colours, or a
+    # turn to the wrong side -> block; a suspicious-but-not-damning capture (flat
+    # light response, opted out, no burst…) -> step up, never a silent pass.
+    prof_v, light_v = profile["verdict"], light["verdict"]
+    if naive:
         decision = {"match": "pass", "review": "step_up"}.get(face.get("verdict"), "block")
-    elif integ["hard"] or motion["verdict"] == "fail" or prof_v == "fail":
+    elif (integ["hard"] or (motion_enabled and motion["verdict"] == "fail")
+          or (light_enabled and light_v == "fail") or prof_v == "fail"):
         decision = "block"
     elif face.get("verdict") in (None, "mismatch"):
         decision = "block"                   # wrong person, or no usable face at all
     elif (face.get("verdict") == "review" or not integ["ok"] or idsig["flags"]
-          or motion["verdict"] in ("review", "insufficient", "absent")
+          or (motion_enabled and motion["verdict"] in ("review", "insufficient", "absent"))
+          or (light_enabled and light_v in ("review", "insufficient", "absent", "skipped"))
           or (prof_enabled and prof_v in ("review", "insufficient", "absent"))):
         decision = "step_up"                 # doubtful identity, document, capture or liveness
     else:
         decision = "pass"
 
-    result = {"decision": decision, "mode": "naive" if NAIVE else "full",
+    result = {"decision": decision, "mode": "naive" if naive else "full",
               "signals": {"face": face, "id": idsig, "integrity": integ,
-                          "motion": motion, "profile": profile}}
+                          "motion": motion, "light": light, "profile": profile}}
     SESSIONS[sid]["result"] = result
     audit_log.record(sid, result, meta_obj)      # scores + first name only, never images
     return result
