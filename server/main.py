@@ -147,9 +147,10 @@ def _decide(naive, face, idsig, integ, motion, motion_on, light, light_on, profi
         soft.append("Capture integrity flags: " + ", ".join(integ.get("flags") or []))
     if idsig.get("flags"):
         soft.append("Document flags: " + ", ".join(idsig["flags"]))
-    if motion_on and mv in ("review", "insufficient", "absent"):
+    if motion_on and mv in ("review", "insufficient", "absent", "skipped"):
         soft.append({"review": "Motion only partly matched the sensors", "insufficient": "Not enough phone movement to judge",
-                     "absent": "No motion burst was received"}[mv] + f" (motion {mv}, score {motion.get('score')})")
+                     "absent": "No motion burst was received", "skipped": "User skipped the phone-move check (travelling in a vehicle)"}[mv]
+                    + f" (motion {mv}" + (f", score {motion.get('score')}" if mv != "skipped" else "") + ")")
     if light_on and lv in ("review", "insufficient", "absent", "skipped"):
         soft.append({"review": "Skin answered the right colours but late / expired challenge",
                      "insufficient": "Flat light response — too bright, or the video ignores the screen",
@@ -220,6 +221,10 @@ async def capture(sid: str,
         timings["motion"] = time.perf_counter() - t0
     else:
         motion = {"ok": True, "verdict": "absent", "enabled": False, "score": 0.0}
+    if motion_enabled and (meta_obj.get("skipped") or {}).get("motion"):
+        # "I'm in a vehicle" skip on the instruction page: not a penalty, not a proof either.
+        motion = {"ok": False, "verdict": "skipped", "enabled": True, "score": 0.0,
+                  "reason": "user_in_vehicle", "flags": []}
 
     # Check 6 — ID next to face + profile turn (the killer feature). Only when
     # the client enabled it; the expected side comes from the session, not meta.

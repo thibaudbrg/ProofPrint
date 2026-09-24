@@ -157,6 +157,11 @@ needs `brew install tesseract` separately either way.
 - Own endpoints (`GET /lab/light/latest|{id}`, `DELETE /lab/light`), in-memory, last 40 runs.
 
 **Recent changes**
+- **Vehicle warning + Skip on the phone-move instruction page:** "Make sure you are standing or
+  sitting still — not in a moving car, train or tram… If you are travelling, skip this step." Skip
+  sends `meta.skipped.motion=true` (no burst) → server `motion.verdict="skipped"` (enabled, reason
+  `user_in_vehicle`) → step_up with the reason "User skipped the phone-move check (travelling in a
+  vehicle)". Same pattern as the light opt-out. Test added (54 green).
 - **Selfie shutter goes straight on:** no still preview, no "✓ Photo taken" toast, no Retake/Continue —
   tap → haptic tick → the live phases (light → move → profile) start via `runLivePhases()`. The
   blur hint is gone with it (the server still gets the sharp 900 px crop). Retake/Continue handlers
