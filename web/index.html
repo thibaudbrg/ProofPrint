@@ -83,6 +83,25 @@
   .steps{display:flex;gap:6px;margin-top:2px}
   .steps i{height:4px;flex:1;border-radius:2px;background:var(--line)}
   .steps i.on{background:var(--accent)}
+
+  /* killer-feature toggle (intro) */
+  .toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;
+          border:1px solid var(--line);border-radius:14px;background:var(--surface);cursor:pointer}
+  .toggle b{display:block;font-size:14px}
+  .toggle small{display:block;color:var(--ink-2);font-size:12px;line-height:1.35;margin-top:2px}
+  .switch{position:relative;width:44px;height:26px;border-radius:13px;background:var(--line);flex:none;transition:background .15s}
+  .switch::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;
+                 box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .15s}
+  .toggle input{position:absolute;opacity:0;pointer-events:none}
+  .toggle input:checked + .switch{background:var(--accent)}
+  .toggle input:checked + .switch::after{transform:translateX(18px)}
+  /* profile-turn arrow overlay */
+  .arrow{position:absolute;top:50%;transform:translateY(-50%);font-size:64px;line-height:1;color:#fff;
+         text-shadow:0 2px 10px rgba(0,0,0,.7);animation:nudge 1s ease-in-out infinite;z-index:2;pointer-events:none}
+  .arrow.left{left:10px}.arrow.right{right:10px}
+  @keyframes nudge{50%{transform:translateY(-50%) translateX(var(--dx,0))}}
+  .arrow.left{--dx:-10px}.arrow.right{--dx:10px}
+  @media(prefers-reduced-motion:reduce){.arrow{animation:none}}
 </style>
 </head>
 <body>
@@ -102,6 +121,11 @@
       <p>Photograph your ID, passport or driving licence, then take a quick selfie. About 30&nbsp;seconds, all on this phone.</p>
     </div>
     <div class="stack">
+      <label class="toggle" for="killer">
+        <span><b>Killer feature: ID + profile turn</b>
+          <small>Adds a 3rd step: hold your ID next to your face and turn to the side we pick. Face-swaps break at a full profile.</small></span>
+        <input type="checkbox" id="killer" checked><span class="switch" aria-hidden="true"></span>
+      </label>
       <button class="btn" id="begin">Begin verification</button>
       <p class="center" style="font-size:12.5px">Secured by Swisscom Trust · your photos stay on the verification server</p>
     </div>
@@ -109,8 +133,8 @@
 
   <!-- ID CAPTURE -->
   <section id="idScreen" class="screen stack" hidden>
-    <div class="steps"><i class="on"></i><i></i></div>
-    <div><span class="eyebrow">Step 1 of 2</span><h2 style="margin-top:5px">Photograph your document</h2>
+    <div class="steps" id="idSteps"><i class="on"></i><i></i></div>
+    <div><span class="eyebrow" id="idStep">Step 1 of 2</span><h2 style="margin-top:5px">Photograph your document</h2>
       <p style="margin-top:4px">Fit the card inside the frame. Avoid glare.</p></div>
     <div class="viewport">
       <video id="idVideo" playsinline muted autoplay></video>
@@ -128,8 +152,8 @@
 
   <!-- SELFIE -->
   <section id="selfieScreen" class="screen stack" hidden>
-    <div class="steps"><i class="on"></i><i class="on"></i></div>
-    <div><span class="eyebrow">Step 2 of 2</span><h2 style="margin-top:5px">Take a selfie</h2>
+    <div class="steps" id="selfieSteps"><i class="on"></i><i class="on"></i></div>
+    <div><span class="eyebrow" id="selfieStep">Step 2 of 2</span><h2 style="margin-top:5px">Take a selfie</h2>
       <p style="margin-top:4px" id="selfieCopy">Put your face inside the circle, tap, then slowly tilt the phone.</p></div>
     <div class="viewport">
       <video id="selfieVideo" playsinline muted autoplay></video>
@@ -143,6 +167,21 @@
       <button class="btn-ghost" id="selfieRetake">Retake</button>
       <button class="btn" id="selfieUse">Use photo</button>
     </div>
+  </section>
+
+  <!-- PROFILE TURN (check 6, killer feature) -->
+  <section id="profileScreen" class="screen stack" hidden>
+    <div class="steps"><i class="on"></i><i class="on"></i><i class="on"></i></div>
+    <div><span class="eyebrow">Step 3 of 3</span><h2 style="margin-top:5px" id="profileTitle">Hold your ID next to your face</h2>
+      <p style="margin-top:4px" id="profileCopy">Tap, then turn your head to the side shown until you're in full profile.</p></div>
+    <div class="viewport">
+      <video id="profileVideo" playsinline muted autoplay></video>
+      <canvas id="profileFeed" class="feed"></canvas>
+      <div class="guide circle" id="profileGuide"></div>
+      <div class="arrow" id="profileArrow" hidden>➜</div>
+      <div class="hint" id="profileHint">Card beside your face, then tap the button</div>
+    </div>
+    <div id="profileCapRow"><div class="shutter" id="profileShutter" role="button" aria-label="Start profile turn"></div></div>
   </section>
 
   <!-- CHECKING -->
@@ -171,7 +210,7 @@
 
 <script>
 const $ = id => document.getElementById(id);
-const screens = ["intro","idScreen","selfieScreen","checking","resultScreen"];
+const screens = ["intro","idScreen","selfieScreen","profileScreen","checking","resultScreen"];
 function show(id){ screens.forEach(s => $(s).hidden = (s!==id)); }
 
 let stream = null, idBlob = null, selfieBlob = null;
@@ -185,6 +224,40 @@ let lastT = 0, frameCount = 0;
 // (deg/s on iOS and Android) on the same performance.now() clock. The server
 // checks that the picture shifts the way the gyroscope says the phone turned.
 const BURST_MS = 3000, BURST_FRAME_MS = 80, BURST_W = 320;
+
+// ---- Check 6: ID + profile turn (killer feature) ----
+// The session is minted at "Begin" so the phone knows which side the SERVER
+// picked. The server judges against its own copy; meta.profile.side is echo only.
+let session = null;                       // {session_id, challenge, segment_ms, profile_side}
+let profileFrames = [];                   // [{name, blob}] — matches meta.profile.frames[i].file
+const PROFILE_MS = 3500, PROFILE_FRAME_MS = 110, PROFILE_W = 480;
+meta.profile = { enabled:false, side:null, frames:[] };
+function killerOn(){ return $("killer").checked; }
+async function recordProfile(videoEl, hintEl, side){
+  profileFrames = []; meta.profile.frames = [];
+  const c = document.createElement("canvas");
+  const vw = videoEl.videoWidth || 640, vh = videoEl.videoHeight || 480;
+  c.width = PROFILE_W; c.height = Math.round(vh * PROFILE_W / vw);
+  const ctx = c.getContext("2d");
+  const pending = [];
+  const t0 = performance.now();
+  let i = 0;
+  await new Promise(done => {
+    const tick = () => {
+      const now = performance.now();
+      if(now - t0 >= PROFILE_MS){ done(); return; }
+      const name = "p" + String(++i).padStart(4,"0") + ".jpg";
+      ctx.drawImage(videoEl, 0, 0, c.width, c.height);            // raw (unmirrored) pixels
+      meta.profile.frames.push({ file:name, t:now });
+      pending.push(new Promise(res => c.toBlob(b => { profileFrames.push({name, blob:b}); res(); }, "image/jpeg", 0.75)));
+      const left = Math.ceil((PROFILE_MS - (now - t0)) / 1000);
+      hintEl.textContent = `Turn your head ${side.toUpperCase()} — all the way… ${left}`;
+      setTimeout(tick, PROFILE_FRAME_MS);
+    };
+    tick();
+  });
+  await Promise.all(pending);
+}
 let burstFrames = [];          // [{name, blob}] — matches meta.frames[i].file
 let recordingMotion = false;
 function onMotion(e){
@@ -287,6 +360,12 @@ $("begin").onclick = async () => {
   // user gesture: ask for motion (iOS) up front — "no motion on a phone" is an attack tell
   if (typeof DeviceMotionEvent?.requestPermission === "function"){ try{ await DeviceMotionEvent.requestPermission(); }catch(_){} }
   window.addEventListener("devicemotion", onMotion);
+  // Mint the session now so the phone knows the server-picked profile side.
+  try { session = await fetch("/session",{method:"POST"}).then(r=>r.json()); } catch(_){ session = null; }
+  const total = killerOn() ? 3 : 2;
+  $("idStep").textContent = `Step 1 of ${total}`; $("selfieStep").textContent = `Step 2 of ${total}`;
+  $("idSteps").innerHTML = '<i class="on"></i>' + '<i></i>'.repeat(total-1);
+  $("selfieSteps").innerHTML = '<i class="on"></i><i class="on"></i>' + (total===3 ? '<i></i>' : '');
   show("idScreen");
   try { await startCamera($("idVideo"), {ideal:"environment"}, false); startFeed($("idVideo"), $("idFeed"), false); }
   catch(e){ $("idHint").textContent = "Camera error: " + e.message; }
@@ -327,15 +406,39 @@ $("selfieRetake").onclick = () => {
   $("selfieHint").textContent = "Center your face and tap the button"; $("selfieHint").hidden=false;
   $("selfieConfirm").hidden=true; $("selfieCapRow").hidden=false;
 };
-$("selfieUse").onclick = () => { stopFeed(); stopStream(); submit(); };
+$("selfieUse").onclick = async () => {
+  stopFeed();
+  if(!killerOn()){ stopStream(); submit(); return; }
+  // Step 3: keep the front camera, show the server-picked side.
+  const side = (session && session.profile_side) || "left";
+  meta.profile.enabled = true; meta.profile.side = side;
+  show("profileScreen");
+  $("profileArrow").hidden = true;
+  $("profileHint").textContent = "Card beside your face, then tap the button";
+  $("profileCapRow").hidden = false;
+  try { await startCamera($("profileVideo"), "user", false); startFeed($("profileVideo"), $("profileFeed"), true); }
+  catch(e){ $("profileHint").textContent = "Camera error: " + e.message; }
+};
+
+// ---- PROFILE TURN ----
+$("profileShutter").onclick = async () => {
+  if($("profileCapRow").hidden) return;
+  const side = meta.profile.side || "left";
+  $("profileCapRow").hidden = true;
+  // The preview is mirrored, so the on-screen arrow points the way the user sees it.
+  const a = $("profileArrow"); a.className = "arrow " + side; a.textContent = side === "left" ? "⬅" : "➡"; a.hidden = false;
+  await recordProfile($("profileVideo"), $("profileHint"), side);
+  a.hidden = true; stopFeed(); stopStream(); submit();
+};
 
 // ---- SUBMIT ----
 async function submit(){
   show("checking");
   $("rIdThumb").src = $("idShot").src; $("rSelfieThumb").src = $("selfieShot").src;
   try {
-    const s = await fetch("/session",{method:"POST"}).then(r=>r.json());
+    const s = session || await fetch("/session",{method:"POST"}).then(r=>r.json());
     const fd = new FormData();
+    for(const f of profileFrames) fd.append("profile_frames", f.blob, f.name);
     fd.append("id_photo", idBlob, "id.jpg");
     fd.append("selfie", selfieBlob, "selfie.jpg");
     for(const f of burstFrames) fd.append("frames", f.blob, f.name);
@@ -360,10 +463,13 @@ function render(res){
   const igtxt = ig.ok ? "clean" : "flags: "+(ig.flags||[]).join(", ");
   const dbg = f.debug ? ` · ID ${f.debug.id_face} / selfie ${f.debug.selfie_face}` : "";
   const motxt = mo.verdict ? `${mo.score ?? "-"} (${mo.verdict}${mo.lag_ms!=null?`, lag ${mo.lag_ms}ms`:""}${mo.reason?`, ${mo.reason}`:""})` : "-";
-  $("resultMeta").textContent = `face ${f.score ?? "-"} (${f.verdict||f.reason||""}) · integrity ${igtxt} · motion ${motxt}${res.mode==="naive"?" · NAIVE MODE":""}${dbg}`;
+  const pr = res.signals.profile || {};
+  const prtxt = !pr.enabled ? "off" : `${pr.score ?? "-"} (${pr.verdict}${pr.side?`, ${pr.side}`:""}${pr.peak_ok!=null?`, turn ${pr.peak_ok}`:""}${pr.card_frac!=null?`, card ${pr.card_frac}`:""}${pr.reason?`, ${pr.reason}`:""})`;
+  $("resultMeta").textContent = `face ${f.score ?? "-"} (${f.verdict||f.reason||""}) · integrity ${igtxt} · motion ${motxt} · profile ${prtxt}${res.mode==="naive"?" · NAIVE MODE":""}${dbg}`;
   show("resultScreen");
 }
 $("restart").onclick = () => { idBlob=selfieBlob=null; meta.frameIntervals=[]; meta.hasMotion=false;
+  session=null; profileFrames=[]; meta.profile={enabled:false, side:null, frames:[]};
   burstFrames=[]; meta.frames=[]; meta.motion=[]; $("selfieHint").textContent = "Center your face and tap the button";
   $("idShot").hidden=true; $("idFeed").hidden=false; startFeed($("idVideo"), $("idFeed"), false); $("idHint").hidden=false; $("idConfirm").hidden=true; $("idCapRow").hidden=false;
   $("selfieShot").hidden=true; $("selfieFeed").hidden=false; startFeed($("selfieVideo"), $("selfieFeed"), true); $("selfieHint").hidden=false; $("selfieConfirm").hidden=true; $("selfieCapRow").hidden=false;
