@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FAF9F6" data-default="#FAF9F6">
+<title>Check-5 lab · phone</title>
+<style>
+  :root{color-scheme:light}
+  *{box-sizing:border-box} [hidden]{display:none!important}
+  html,body{height:100%;overflow:hidden}
+  body{margin:0;background:#FAF9F6;color:#1C1A17;font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center}
+  .app{width:100%;max-width:440px;height:100dvh;display:flex;flex-direction:column;gap:12px;padding:16px 18px calc(16px + env(safe-area-inset-bottom))}
+  h1{font-size:18px;margin:0}
+  .sub{color:#6C6860;font-size:13px;margin:0}
+  .viewport{position:relative;width:100%;flex:1;min-height:0;border-radius:16px;overflow:hidden;background:#0c0c0d}
+  video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+  .hud{position:absolute;left:10px;right:10px;bottom:10px;font-family:ui-monospace,monospace;font-size:12px;color:#fff;
+       background:rgba(0,0,0,.45);border-radius:10px;padding:8px 10px;line-height:1.5;white-space:pre-wrap}
+  .oval{position:absolute;left:50%;top:50%;width:58%;aspect-ratio:3/4;transform:translate(-50%,-50%);border:2px dashed rgba(255,255,255,.8);border-radius:50%;pointer-events:none}
+  .row{display:flex;gap:8px;align-items:center}
+  input{font:inherit;padding:10px 12px;border:1px solid #EAE6DE;border-radius:10px;background:#fff;min-width:0;flex:1}
+  button{font:inherit;font-weight:600;border:0;border-radius:12px;padding:14px 18px;background:#C96442;color:#fff;cursor:pointer}
+  button:disabled{opacity:.4}
+  .ghost{background:transparent;color:#1C1A17;border:1px solid #EAE6DE}
+  .res{font-family:ui-monospace,monospace;font-size:12.5px;background:#fff;border:1px solid #EAE6DE;border-radius:12px;padding:10px 12px;white-space:pre-wrap;line-height:1.5}
+  .pass{color:#1E7A47}.review,.insufficient,.absent{color:#B26B0C}.fail{color:#C13B2C}
+  .strip{display:flex;gap:3px;margin:6px 0}
+  .strip i{flex:1;height:18px;border-radius:4px;position:relative}
+  .strip i::after{content:attr(data-p);position:absolute;left:0;right:0;top:20px;text-align:center;font-size:11px;font-style:normal;color:#1C1A17}
+  /* full-screen colour surface — same as the app */
+  #lightFlash{position:fixed;inset:0;z-index:9999;background:#808080;transition:none}
+  #lightThumb{position:absolute;top:calc(env(safe-area-inset-top) + 10px);left:50%;transform:translateX(-50%);width:26vw;max-width:120px;
+              border-radius:40%;opacity:.95;border:2px solid rgba(255,255,255,.7)}
+  #lightHint{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 44px);text-align:center;color:#fff;font-size:16px;
+             font-weight:600;text-shadow:0 1px 4px rgba(0,0,0,.8);padding:0 20px}
+  #lightBar{position:absolute;left:24px;right:24px;bottom:calc(env(safe-area-inset-bottom) + 26px);height:6px;border-radius:3px;background:rgba(0,0,0,.25);overflow:hidden}
+  #lightBar i{display:block;height:100%;width:0;background:#fff}
+</style>
+</head>
+<body>
+<div class="app">
+  <div><h1>Check-5 lab · light pulse only</h1><p class="sub">Flash + record, nothing else. ⚠ flashing colours for ~5 s. Results appear live on the laptop at <code>/lab/light</code>.</p></div>
+
+  <div class="viewport">
+    <video id="v" playsinline muted autoplay></video>
+    <div class="oval"></div>
+    <div class="hud" id="hud">tap Start camera · then hold the phone a hand-span from your face, screen bright</div>
+  </div>
+
+  <div class="row"><input id="label" placeholder="label: genuine office / window / dark / replay…" value="genuine"></div>
+  <div class="row">
+    <button class="ghost" id="start">Start camera</button>
+    <button id="rec" disabled>Run light check</button>
+  </div>
+  <div class="res" id="res" hidden></div>
+</div>
+
+<div id="lightFlash" hidden>
+  <canvas id="lightThumb" aria-hidden="true"></canvas>
+  <div id="lightHint">Keep still · look at the screen</div>
+  <div id="lightBar"><i></i></div>
+</div>
+
+<script src="/web/light.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const RGB = { grey:"#808080", black:"#000", red:"#f00", green:"#0f0", blue:"#00f" };
+let stream = null, busy = false;
+
+$("start").onclick = async () => {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio:false, video:{ facingMode:"user", width:{ideal:1280}, height:{ideal:960}, frameRate:{ideal:30,max:30} } });
+    $("v").srcObject = stream; $("rec").disabled = false; $("start").textContent = "Camera on";
+    $("hud").textContent = `camera on · rVFC ${$("v").requestVideoFrameCallback ? "yes" : "NO (timeout fallback)"} · dpr ${devicePixelRatio}`;
+  } catch(e){ $("hud").textContent = "camera error: " + e.message; }
+};
+
+$("rec").onclick = async () => {
+  if(busy) return; busy = true; $("rec").disabled = true; $("res").hidden = true;
+  const v = $("v"), hud = $("hud");
+  try {
+    const ch = await fetch("/lab/light/mint", { method:"POST" }).then(r => r.json());
+    ch._t_received = performance.now();
+    const ui = { flash:$("lightFlash"), thumb:$("lightThumb"), hint:$("lightHint"), fill:$("lightBar").querySelector("i") };
+    const out = await LightPulse.run({ videoEl:v, stream, challenge:ch, ui, events:[] });
+    hud.textContent = `uploading ${out.frames.length} frames…`;
+    const fd = new FormData();
+    for(const f of out.frames) fd.append("light_frames", f.blob, f.name);
+    fd.append("meta", JSON.stringify({ light: out.light, label: $("label").value, ua: navigator.userAgent,
+      claimsMobile:/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent),
+      cameraLabel: stream ? (stream.getVideoTracks()[0].label||"") : "" }));
+    const r = await fetch("/lab/light", { method:"POST", body:fd }).then(x => x.json());
+    const o = r.official || {}, t = r.timing || {}, cc = out.light.client_checks || {};
+    const segs = (o.per_segment || []);
+    const strip = (r.challenge ? r.challenge.slots : []).map((s, i) => {
+      const seg = segs.find(x => x.slot === i);
+      const p = !seg ? "" : seg.ok == null ? "?" : (seg.ok ? "✓" : "✗ " + seg.pred[0]);
+      return `<i style="background:${RGB[s]}" data-p="${p}"></i>`; }).join("");
+    $("res").hidden = false;
+    $("res").innerHTML = `run #${r.id} · <b class="${o.verdict}">${o.verdict}</b> · score ${o.score ?? "-"}\n` +
+      `ρ ${o.rho ?? "-"}  acc ${o.acc ?? "-"}  p ${o.p ?? "-"}  snr ${o.snr ?? "-"}  amp ${o.amp ?? "-"}  lag ${o.lag_ms ?? "-"} ms\n` +
+      `<div class="strip">${strip}</div><br>` +
+      `frames ${t.n_frames ?? "-"} @ ${t.fps ?? "-"} fps (${(t.grab||{}).mode}) · face frames ${o.n_face_frames ?? "-"} · bg ref ${o.bg_reference ?? "-"}\n` +
+      `client: painted ${cc.all_painted} · switch err ${cc.max_switch_err_ms} ms · dur err ${cc.max_dur_err_ms} ms · min/seg ${cc.min_frames_per_seg}\n` +
+      `${(o.flags||[]).length ? "flags: " + o.flags.join(", ") + "\n" : ""}→ details on the laptop dashboard`;
+    hud.textContent = `done · run #${r.id} ${o.verdict}`;
+  } catch(e){ $("res").hidden = false; $("res").textContent = "failed: " + e.message; hud.textContent = "failed"; }
+  busy = false; $("rec").disabled = false;
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Check-4 lab</title>
+<style>
+  :root{color-scheme:light;--bg:#F5F4F0;--panel:#fff;--ink:#15191B;--ink2:#5B616B;--line:#E3E7E5;
+        --video:#2E44E6;--gyro:#C96442;--resid:#9AA1AC;--pass:#1E7A47;--warn:#B26B0C;--fail:#C13B2C}
+  *{box-sizing:border-box} [hidden]{display:none!important}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,sans-serif;font-size:13px}
+  .wrap{max-width:1400px;margin:0 auto;padding:18px 20px 40px}
+  header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+  h1{font-size:20px;margin:0} h2{font-size:13px;margin:0 0 6px;color:var(--ink2);text-transform:uppercase;letter-spacing:.06em}
+  .mono{font-family:ui-monospace,monospace;font-variant-numeric:tabular-nums}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .wide{grid-column:1/-1}
+  .kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px}
+  .kv div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--line);padding:3px 0}
+  .kv span:first-child{color:var(--ink2)}
+  .verdict{font-size:26px;font-weight:800;padding:6px 14px;border-radius:10px;background:#EEF0EC}
+  .pass{color:var(--pass)}.review,.insufficient,.absent{color:var(--warn)}.fail{color:var(--fail)}
+  svg{width:100%;height:auto;display:block}
+  .legend{display:flex;gap:14px;font-size:12px;color:var(--ink2);margin-bottom:4px;flex-wrap:wrap}
+  .legend i{display:inline-block;width:18px;height:3px;vertical-align:middle;margin-right:5px;border-radius:2px}
+  table{border-collapse:collapse;width:100%;font-size:12.5px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+  th{color:var(--ink2);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  tr.sel td{background:#EEF2FF} tr{cursor:pointer}
+  .pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:600;background:#EEF0EC}
+  .live{display:inline-flex;align-items:center;gap:6px;color:var(--ink2)}.live b{width:8px;height:8px;border-radius:50%;background:var(--pass);display:inline-block}
+  button{font:inherit;border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 10px;cursor:pointer}
+  .empty{color:var(--ink2);padding:40px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Check-4 lab — gyroscope ↔ video</h1>
+    <span class="live"><b></b> polling <code>/lab/motion/latest</code> every 1 s</span>
+    <a href="/lab/light" style="color:var(--ink2)">check-5 lab →</a>
+    <span style="flex:1"></span>
+    <span class="mono" id="phoneUrl"></span>
+    <button id="clear">clear runs</button>
+  </header>
+
+  <div id="empty" class="empty">No runs yet. On the phone open <code>&lt;tunnel&gt;/lab/phone</code>, tap <b>Start camera</b>, then <b>Record tilt</b>.</div>
+
+  <div id="main" hidden>
+    <div class="grid">
+      <div class="panel wide" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+        <span class="verdict" id="verdict">—</span>
+        <div class="kv" style="flex:1" id="headline"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Horizontal · video vx vs gyro yaw (β, about Y) — z-scored, aligned at best lag</h2>
+        <div class="legend"><span><i style="background:var(--video)"></i>video (background flow)</span><span><i style="background:var(--gyro)"></i>gyro</span><span><i style="background:var(--resid)"></i>residual</span></div>
+        <div id="chH"></div>
+      </div>
+      <div class="panel">
+        <h2>Vertical · video vy vs gyro pitch (α, about X) — z-scored, aligned at best lag</h2>
+        <div class="legend"><span><i style="background:var(--video)"></i>video</span><span><i style="background:var(--gyro)"></i>gyro</span><span><i style="background:var(--resid)"></i>residual</span></div>
+        <div id="chV"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Score vs lag — the sweep (best lag marked; dashed = PASS / REVIEW thresholds)</h2>
+        <div class="legend"><span><i style="background:var(--ink)"></i>score</span><span><i style="background:var(--video)"></i>r_yaw</span><span><i style="background:var(--gyro)"></i>r_pitch</span></div>
+        <div id="chSweep"></div>
+      </div>
+      <div class="panel">
+        <h2>Raw, unaligned · video px/s (top) and gyro deg/s (bottom)</h2>
+        <div class="legend"><span><i style="background:var(--video)"></i>vx</span><span><i style="background:#7FA0F0"></i>vy</span><span><i style="background:var(--gyro)"></i>yaw</span><span><i style="background:#E0A37A"></i>pitch</span><span><i style="background:#BBB"></i>roll</span></div>
+        <div id="chRawV"></div><div id="chRawG"></div>
+      </div>
+
+      <div class="panel"><h2>Numbers</h2><div class="kv" id="numbers"></div></div>
+      <div class="panel"><h2>Timing &amp; thresholds</h2><div class="kv" id="timing"></div></div>
+
+      <div class="panel wide"><h2>Runs (click to inspect)</h2><table><thead><tr>
+        <th>#</th><th>time</th><th>label</th><th>verdict</th><th>score</th><th>lag</th><th>r_yaw</th><th>r_pitch</th><th>gyro rms</th><th>flow rms</th><th>method</th><th>flags / reason</th>
+      </tr></thead><tbody id="runs"></tbody></table></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+$("phoneUrl").textContent = location.origin.replace(/^http:\/\/(localhost|127\.0\.0\.1)/, "<tunnel>") + "/lab/phone";
+let currentId = null, pinnedId = null;
+
+// ---- tiny SVG line chart: series = [{y:[], color, width, dash}], x = [] shared ----
+function chart(el, x, series, {h=190, ylines=[], xlabel="ms", marker=null, sym=false} = {}){
+  const W = 640, H = h, L = 44, R = 10, T = 10, B = 26;
+  const xs = x, xmin = Math.min(...xs), xmax = Math.max(...xs);
+  let ymin = Infinity, ymax = -Infinity;
+  series.forEach(s => s.y.forEach(v => { if(v!=null && isFinite(v)){ ymin=Math.min(ymin,v); ymax=Math.max(ymax,v);} }));
+  ylines.forEach(l => { ymin=Math.min(ymin,l.v); ymax=Math.max(ymax,l.v); });
+  if(sym){ const m = Math.max(Math.abs(ymin),Math.abs(ymax)); ymin=-m; ymax=m; }
+  if(ymin===ymax){ ymin-=1; ymax+=1; }
+  const pad=(ymax-ymin)*0.06; ymin-=pad; ymax+=pad;
+  const X = v => L + (v-xmin)/(xmax-xmin||1)*(W-L-R), Y = v => T + (ymax-v)/(ymax-ymin)*(H-T-B);
+  let g = `<svg viewBox="0 0 ${W} ${H}">`;
+  // grid + axes
+  const ticks = 4;
+  for(let i=0;i<=ticks;i++){ const v = ymin+(ymax-ymin)*i/ticks; g += `<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="#EEF0EE"/><text x="${L-6}" y="${Y(v)+4}" text-anchor="end" font-size="10" fill="#5B616B">${v.toFixed(Math.abs(ymax-ymin)<5?2:0)}</text>`; }
+  if(ymin<0&&ymax>0) g += `<line x1="${L}" x2="${W-R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#C9CDC9"/>`;
+  for(let i=0;i<=4;i++){ const v = xmin+(xmax-xmin)*i/4; g += `<text x="${X(v)}" y="${H-8}" text-anchor="middle" font-size="10" fill="#5B616B">${v.toFixed(0)}${i===4?" "+xlabel:""}</text>`; }
+  ylines.forEach(l => g += `<line x1="${L}" x2="${W-R}" y1="${Y(l.v)}" y2="${Y(l.v)}" stroke="${l.color||'#999'}" stroke-dasharray="5 4"/><text x="${W-R-2}" y="${Y(l.v)-3}" text-anchor="end" font-size="10" fill="${l.color||'#999'}">${l.label||''}</text>`);
+  if(marker!=null) g += `<line x1="${X(marker)}" x2="${X(marker)}" y1="${T}" y2="${H-B}" stroke="#15191B" stroke-dasharray="3 3"/>`;
+  series.forEach(s => { const pts = s.y.map((v,i)=> v==null||!isFinite(v)?null:`${X(xs[i]).toFixed(1)},${Y(v).toFixed(1)}`).filter(Boolean).join(" ");
+    g += `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="${s.width||2}" ${s.dash?`stroke-dasharray="${s.dash}"`:""} stroke-linejoin="round"/>`; });
+  el.innerHTML = g + "</svg>";
+}
+const kv = (el, obj) => el.innerHTML = Object.entries(obj).map(([k,v]) => `<div><span>${k}</span><span class="mono">${v==null?"—":v}</span></div>`).join("");
+
+function render(run){
+  const o = run.official || {}, d = run.detail || {}, s = d.stats || {}, t = d.timing || {}, th = d.thresholds || {};
+  $("verdict").textContent = o.verdict || "—"; $("verdict").className = "verdict " + (o.verdict||"");
+  kv($("headline"), { run:`#${run.id} · ${run.at}`, label:run.label, score:o.score, "best lag (ms)":o.lag_ms, r_yaw:s.r_yaw, r_pitch:s.r_pitch,
+                       method:s.flow_method, "face masked":s.face_masked, reason:o.reason||"", flags:(o.flags||[]).join(", ")||"none" });
+  if(d.error || !d.t_ms){ ["chH","chV","chSweep","chRawV","chRawG"].forEach(id=>$(id).innerHTML=`<div class="empty">${d.error||"no curves (burst too short?)"}</div>`); kv($("numbers"),{}); kv($("timing"),{}); return; }
+  const V="#2E44E6", G="#C96442", RS="#9AA1AC";
+  chart($("chH"), d.t_ms, [{y:d.residual.h,color:RS,width:1.2},{y:d.z.vx,color:V},{y:d.z.yaw,color:G,dash:"6 4"}], {sym:true});
+  chart($("chV"), d.t_ms, [{y:d.residual.v,color:RS,width:1.2},{y:d.z.vy,color:V},{y:d.z.pitch,color:G,dash:"6 4"}], {sym:true});
+  chart($("chSweep"), d.sweep.lag_ms, [{y:d.sweep.r_yaw,color:V,width:1.3},{y:d.sweep.r_pitch,color:G,width:1.3},{y:d.sweep.score,color:"#15191B",width:2.5}],
+        {ylines:[{v:th.SCORE_PASS,label:"PASS "+th.SCORE_PASS,color:"#1E7A47"},{v:th.SCORE_REVIEW,label:"REVIEW "+th.SCORE_REVIEW,color:"#B26B0C"}], marker:d.sweep.best_lag_ms, xlabel:"ms lag (frames later than sensors →)"});
+  chart($("chRawV"), d.t_ms, [{y:d.video.vx,color:V},{y:d.video.vy,color:"#7FA0F0"}], {h:150, sym:true, xlabel:"ms"});
+  chart($("chRawG"), d.raw_motion.t_ms, [{y:d.raw_motion.yaw,color:G},{y:d.raw_motion.pitch,color:"#E0A37A"},{y:d.raw_motion.roll,color:"#BBB",width:1}], {h:150, sym:true, xlabel:"ms"});
+  const m = d.medians||{}, e = d.energy||{}, r = d.residual||{};
+  kv($("numbers"), { "gyro rms (deg/s)":s.gyro_rms_dps, "flow rms (px/s)":s.flow_rms_pxs, "acc jitter (m/s²)":s.acc_jitter_ms2,
+    "median |vx| px/s":m.abs_vx_pxs, "median |vy| px/s":m.abs_vy_pxs, "median |yaw| °/s":m.abs_yaw_dps, "median |pitch| °/s":m.abs_pitch_dps,
+    "var yaw / var pitch":`${e.var_yaw} / ${e.var_pitch}`, "weight on yaw":e.weight_yaw, "residual rms H / V":`${r.rms_h} / ${r.rms_v}`,
+    "gyro sign flip H / V":`${d.gyro_aligned.sign_h} / ${d.gyro_aligned.sign_v}`, "face box":s.face_box?s.face_box.join(","):"none",
+    "|r| vx vs pitch/yaw/roll":(d.axis_diag||{}).vx, "|r| vy vs pitch/yaw/roll":(d.axis_diag||{}).vy, "axis check":(d.axis_diag||{}).verdict });
+  kv($("timing"), { "frames / samples":`${t.n_frames} / ${t.n_motion}`, "burst (ms)":t.burst_ms, "frame fps":t.frame_fps, "frame jitter %":t.frame_jitter_pct,
+    "frame Δt median/std":`${t.frame_interval_ms?.median} / ${t.frame_interval_ms?.std}`, "motion Hz":t.motion_hz, "motion Δt median/std":`${t.motion_interval_ms?.median} / ${t.motion_interval_ms?.std}`,
+    "SCORE_PASS / REVIEW":`${th.SCORE_PASS} / ${th.SCORE_REVIEW}`, "MIN_GYRO_RMS":th.MIN_GYRO_RMS_DPS, "FLOW_STATIC px/s":th.FLOW_STATIC_PXS,
+    "STATIONARY gyro/acc":`${th.STATIONARY_GYRO_DPS} / ${th.STATIONARY_ACC_MS2}`, "LAG_MAX ms":th.LAG_MAX_MS });
+}
+function renderRuns(runs){
+  $("runs").innerHTML = runs.map(r => `<tr data-id="${r.id}" class="${r.id===(pinnedId??currentId)?'sel':''}"><td class="mono">${r.id}</td><td class="mono">${r.at}</td><td>${r.label}</td>
+    <td><span class="pill ${r.verdict}">${r.verdict}</span></td><td class="mono">${r.score??"—"}</td><td class="mono">${r.lag_ms??"—"}</td><td class="mono">${r.r_yaw??"—"}</td><td class="mono">${r.r_pitch??"—"}</td>
+    <td class="mono">${r.gyro_rms??"—"}</td><td class="mono">${r.flow_rms??"—"}</td><td class="mono">${r.method??"—"}</td><td class="mono">${(r.flags||[]).join(", ")}${r.reason?" · "+r.reason:""}</td></tr>`).join("");
+  $("runs").querySelectorAll("tr").forEach(tr => tr.onclick = async () => { pinnedId = +tr.dataset.id; render(await fetch(`/lab/motion/${pinnedId}`).then(x=>x.json())); renderRuns(runs); });
+}
+async function poll(){
+  try {
+    const d = await fetch("/lab/motion/latest").then(x=>x.json());
+    if(!d.run){ $("empty").hidden=false; $("main").hidden=true; return; }
+    $("empty").hidden=true; $("main").hidden=false;
+    if(d.run.id !== currentId){ currentId = d.run.id; pinnedId = null; render(d.run); }
+    renderRuns(d.runs);
+  } catch(_){}
+}
+$("clear").onclick = async () => { await fetch("/lab/motion",{method:"DELETE"}); currentId=null; pinnedId=null; poll(); };
+poll(); setInterval(poll, 1000);
+</script>
+</body>
+</html>
