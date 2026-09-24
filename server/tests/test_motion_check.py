@@ -102,3 +102,37 @@ def test_too_few_frames_is_insufficient():
     m = gyro_trace()
     r = mc.check(m, render_frames(m)[:4])
     assert r["verdict"] == "insufficient"
+
+
+def test_head_motion_with_still_phone_is_insufficient_not_fail(monkeypatch):
+    # Only the FACE region moves (user turned their head); phone lay still.
+    monkeypatch.setattr(mc, "_face_box", lambda bgr: (110, 60, 100, 120))
+    still = [{"t": i * 1000 / HZ, "rx": RNG.normal(0, 0.6), "ry": RNG.normal(0, 0.6), "rz": 0.0,
+              "ax": RNG.normal(0, 0.3), "ay": RNG.normal(0, 0.3), "az": RNG.normal(0, 0.3)}
+             for i in range(int(HZ * DUR))]
+    frames = render_frames(still, static=True)
+    blob = RNG.integers(0, 255, (120, 100, 3), dtype=np.uint8)
+    out = []
+    for k, (t, f) in enumerate(frames):
+        f = f.copy(); dx = int(25 * np.sin(k / 3.0))
+        f[60:180, 110 + dx:210 + dx] = blob                     # the "head" wobbles, background fixed
+        out.append((t, f))
+    r = mc.check(still, out)
+    assert r["verdict"] == "insufficient", r
+    assert r["face_masked"] is True
+
+
+def test_stationary_device_is_rejected():
+    # arXiv 2605.00218: a phone on a stand / emulator shows no sensor jitter at all.
+    dead = [{"t": i * 1000 / HZ, "rx": 0.0, "ry": 0.0, "rz": 0.0, "ax": 0.0, "ay": 0.0, "az": 9.81}
+            for i in range(int(HZ * DUR))]
+    r = mc.check(dead, render_frames(dead, static=True))
+    assert r["verdict"] == "fail" and "stationary_device" in r["flags"], r
+
+
+def test_genuine_with_accelerometer_still_passes():
+    m = [{**s, "ax": RNG.normal(0, 0.4), "ay": RNG.normal(0, 0.4), "az": 9.8 + RNG.normal(0, 0.4)}
+         for s in gyro_trace(seed=6)]
+    r = mc.check(m, render_frames(m))
+    assert r["verdict"] == "pass", r
+    assert r["acc_rms_ms2"] is not None and r["acc_rms_ms2"] > mc.STATIONARY_ACC_MS2

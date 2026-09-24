@@ -27,17 +27,24 @@ review it together before merging.
 **Build progress (the 5 checks)**
 - [x] **Check 1 — Face match** (walking skeleton, Act 1). Robust to EXIF rotation + small document faces.
 - [x] **Check 3 — Capture integrity** (virtual-cam label, facingMode, no-motion; timing = info only).
-- [x] **Check 4 — Gyroscope ↔ video** ★ THE CORE. `server/motion_check.py` + burst in
-  `web/index.html`. Phase-correlation global flow vs devicemotion rotationRate, lag search
-  ±300 ms, energy-weighted |Pearson| over yaw/pitch. 12 synthetic tests green. **NOT yet
-  tested on a real phone** — see "Open TODO" #1. No MediaPipe needed (OpenCV only).
+- [x] **Check 4 — Gyroscope ↔ video** ★ THE CORE. `server/motion_check.py` v2:
+  **background-only** sparse flow (Shi-Tomasi + LK, face box masked via YuNet) vs devicemotion
+  rotationRate, lag search ±300 ms, energy-weighted |Pearson|; accelerometer recorded too;
+  **stationary-device test** (gyro AND acc flat → block, per arXiv 2605.00218). Head movement
+  with a still phone is now `insufficient` (step_up), NOT fail — that was the first phone
+  run's false block. No MediaPipe needed (OpenCV only).
 - [x] **Naive mode** for Act 2: `PROOFPRINT_MODE=naive ./dev.sh` → decides on `face` only.
 - [x] **Check 6 — ID next to face + profile turn** ★ THE KILLER FEATURE (branch
-  `feat/profile-challenge`). Toggle on the intro screen ("Killer feature", default ON) adds
-  Step 3: server-minted side, 3.5 s burst; `server/profile_check.py` = YuNet-landmark yaw,
-  side compliance (wrong side → block), card-next-to-face rectangle, face↔card colour temp,
-  snap-back flag. 15 tests green. **NOT yet phone-tested** — `SIDE_SIGN`/`TURN_MIN` need one
-  real run (see Open TODO #2). Occlusion-edge deepfake score = TODO (no classifier in repo).
+  `feat/profile-challenge`, v2 after the first phone run). Toggle on the intro screen
+  ("Killer feature", default ON). ONE continuous capture on the selfie screen: tilt phase
+  (check 4, ends early once ~35° of rotation is banked, 1.5–4 s) → "hold your ID over one eye
+  and turn <side>" phase (2.8 s) with a combined face-circle + card-slot guide → auto-submit.
+  No confirm screens. `server/profile_check.py`: yaw from YuNet landmarks, side compliance
+  vs the server nonce (wrong side → block), **ORB match of the step-1 ID photo** in every
+  frame (same document, not just "a rectangle"), **occlusion**: card must cross the face and
+  its edge must survive inside the face box (a swap paints over it → `card_edge_erased_over_face`),
+  face↔card colour temperature, snap-back. 34 tests green. First phone run: side sign
+  confirmed, `peak_ok=0.17` on a modest turn; card contour detector scored 0 → replaced by ORB.
 - [ ] **Check 5 — Light pulse** (flash random colours, skin must reflect them).
 - [ ] **Check 2 — ID card MRZ** (optional; face extraction already works via check 1).
 - [ ] **Attack rig** (OBS + deepfake) → milestone M1 ("naïve app fooled").
@@ -47,22 +54,30 @@ review it together before merging.
 **Open TODO / next actions**
 0. **Live now:** `https://jvc-fisheries-six-utc.trycloudflare.com` (Vasiliy's Mac, uvicorn
    --reload on **:8010** + cloudflared; dies with that process — restart and update this line).
-1. **Phone-test check 4** (iPhone + Android): run a genuine burst, read the server log line
-   `[motion_check] score=… lag=…`. Expect score > 0.6 and lag 0–150 ms. If real phones
-   score low, first suspects: axis mapping (`ry`=gamma↔horizontal flow), frame timestamps,
-   phone held too still (`gyro_rms_dps` < 8 → "insufficient"). Tune `SCORE_PASS`/`SCORE_REVIEW`
-   in `motion_check.py`.
-2. **Phone-test check 6**: one run turning LEFT when asked LEFT. Read `[profile_check] …
-   peak_ok=… peak_wrong=…`. If `peak_wrong` is the big one, flip `SIDE_SIGN` in
-   `profile_check.py`. If both are small (<0.12) the yaw proxy needs a lower `TURN_MIN` or
-   YuNet lost the face early → check `faces=` count. `card_frac` low → tune `_find_card`
-   (Canny thresholds, `CARD_MIN_AREA`) against venue light.
+1. **Calibrate on phones** (what "phone-test" means: the code is complete, the THRESHOLDS
+   were set on synthetic data — every real run either confirms them or moves them). Do 5
+   genuine runs (2 phones, venue light) and paste the two log lines per run here:
+   `[motion_check] verdict=… score=… gyro_rms=… acc_rms=… flow_rms=… method=…` — want
+   score > 0.6, `method=lk_background`, `face_masked=True`; if `insufficient` the user tilted
+   the head not the phone (the UI now nags + shows a tilting-phone icon).
+   `[profile_check] … peak_ok=… card_frac=… card_src=… occl_seen=… occl_q=…` — want
+   peak_ok ≥ 0.22 on a full turn (0.17 seen on a modest one), card_src mostly `orb`,
+   occl_seen True when the card really covers an eye. Knobs: `TURN_MIN/TURN_FULL`,
+   `ORB_MIN_MATCHES`, `OCCLUSION_MIN_OVERLAP`, `MIN_GYRO_RMS_DPS`.
+2. **Attack runs** (own faces only): still deepfake via OBS while waving the phone; screen
+   replay; phone on a stand (→ `stationary_device`). Record APCER/BPCER from 1 + 2.
 3. Calibrate face threshold on real ID-vs-selfie pairs (see `COSINE_MATCH`/`COSINE_LOW`).
-4. Set up the attack rig to lock M1 (naive mode now exists for it).
-5. Analyst dashboard: plot `signals.motion.series` + `signals.profile.yaw_series`.
-6. Check 5 (light pulse) still open; the `challenge` colours are minted but unused.
+   First real pair scored 0.424 (match; band 0.363/0.28 holds so far).
+4. Analyst dashboard: plot `signals.motion.series` + `signals.profile.yaw_series`.
+5. Check 5 (light pulse) still open; the `challenge` colours are minted but unused.
 
 **Recent changes**
+- **v2 of checks 4 + 6 after the first phone run** (`feat/profile-challenge`): one
+  continuous capture, no confirm screens, ~5–7 s total after the ID; combined face + card
+  guide; tilt phase ends early on banked rotation; accelerometer + `events` in meta;
+  background-only flow with the face masked (head motion can no longer block a real user);
+  stationary-device rejection; ORB card matching against the step-1 ID; occlusion-edge
+  check (KnowBe4 ghosting signature); all early-return paths now log their numbers.
 - **Check 6 implemented** (`feat/profile-challenge`): "Killer feature" toggle on intro; the
   session is now minted at **Begin** (was: at submit) so the phone knows `profile_side`;
   Step 3 screen with mirrored arrow; `profile_frames` upload; `signals.profile` in the result;
@@ -221,14 +236,18 @@ if missing. Camera needs HTTPS — that's why the tunnel exists.
   **CALIBRATE on real ID-vs-selfie pairs** (ID photos score lower — see DocFace+).
 - **EXIF rotation:** phone JPEGs come in sideways via `cv2.imdecode`; we try 4 rotations.
 - **Integrity timing:** weak/noisy → informational only, never blocks.
-- **Check 4 (built):** global image shift per frame pair via `cv2.phaseCorrelate` (160 px
-  grey, Hanning window) → px/s; gyro (`beta`→pitch↔vertical flow, `gamma`→yaw↔horizontal
+- **Check 4 (built, v2):** BACKGROUND shift per frame pair: Shi-Tomasi corners outside the
+  (grown) YuNet face box + Lucas-Kanade, median displacement → px/s; whole-frame
+  `cv2.phaseCorrelate` (face masked) as fallback on featureless backgrounds; gyro (`beta`→pitch↔vertical flow, `gamma`→yaw↔horizontal
   flow) interpolated to frame midpoints; |Pearson| per axis, energy-weighted, best over
   lags ±300 ms. Thresholds `SCORE_PASS=0.60`, `SCORE_REVIEW=0.35`, `MIN_GYRO_RMS_DPS=8`
   (from synthetic tests — calibrate on phones). Still video + moving phone → fail; moving
   video + still phone → fail; nothing moved → insufficient (step_up, "please tilt").
   Head-pose (MediaPipe) was NOT needed; revisit only if background-less scenes break flow.
-- **Check 6 (built):** yaw proxy = (nose_x − eye_mid_x) / face_w from YuNet's 5 landmarks
+- **Check 6 (built, v2):** score = 0.45·turn + 0.20·card(ORB vs step-1 ID) + 0.20·occlusion-edge
+  + 0.15·lighting − 0.2·snap. Occlusion-edge = fraction of the card boundary INSIDE the face
+  box that is still a Canny edge (swap paints over the occluder → edge gone).
+  Yaw proxy = (nose_x − eye_mid_x) / face_w from YuNet's 5 landmarks
   (frontal ≈ 0, ~45° ≈ 0.15; YuNet usually loses the face near 90°, which counts as "reached
   profile" if the last frames trended the right way). `SIDE_SIGN={"left":+1,"right":-1}` for
   RAW (unmirrored) front-camera frames — flip if a phone test disagrees. `TURN_MIN=0.12`,
