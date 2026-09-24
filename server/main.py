@@ -28,6 +28,7 @@ import integrity_check
 import lab
 import light_check
 import motion_check
+import neck_check
 import profile_check
 
 app = FastAPI(title="Proofprint")
@@ -92,6 +93,12 @@ def _light_signal(sid: str, meta_obj: dict, lframes: list, enabled: bool) -> dic
     total_s = sum(stored["challenge"]["dur_ms"]) / 1000
     expired = time.time() - stored["minted"] > total_s + light_check.CHALLENGE_TTL_S
     sig = light_check.check(lframes, light_check.colour_log_from_meta(lm), stored["challenge"])
+    # Experimental, report-only (never fused): do the neck, ears and hairline take the
+    # flash the same way the cheeks do? Kept only if it separates our own runs.
+    try:
+        sig["neck"] = neck_check.check(lframes, light_check.colour_log_from_meta(lm), stored["challenge"])
+    except Exception as exc:
+        sig["neck"] = {"verdict": "error", "fused": False, "error": str(exc)}
     sig["enabled"] = True
     sig["attempt"] = lm.get("attempt")
     sig["client_checks"] = lm.get("client_checks")
@@ -100,6 +107,61 @@ def _light_signal(sid: str, meta_obj: dict, lframes: list, enabled: bool) -> dic
         if sig["verdict"] == "pass":
             sig["verdict"], sig["ok"] = "review", False
     return sig
+
+
+def _decide(naive, face, idsig, integ, motion, motion_on, light, light_on, profile, prof_on):
+    """The fusion rule + a human-readable reason per trigger (shown in the analyst trace).
+
+    Naive app (Act 2): face only. Mitigated app: a known virtual camera, a video that
+    does not move with the phone, skin that answers the WRONG colours, or a turn to
+    the wrong side -> block; wrong person / no face -> block; anything doubtful
+    (flat light response, opted out, no burst, document or capture flags) -> step up,
+    never a silent pass.
+    """
+    fv, mv, lv, pv = face.get("verdict"), motion.get("verdict"), light.get("verdict"), profile.get("verdict")
+    fs = face.get("score")
+    if naive:
+        d = {"match": "pass", "review": "step_up"}.get(fv, "block")
+        return d, [f"Naïve mode: decided on the face match alone ({fv or 'no face'}, score {fs}). "
+                   "Every liveness signal below was computed but ignored."]
+    hard, soft = [], []
+    if integ.get("hard"):
+        hard.append("Virtual camera detected in the capture (integrity hard flag): " + ", ".join(integ.get("flags") or []))
+    if motion_on and mv == "fail":
+        hard.append("The video did not move with the phone's sensors (motion fail" +
+                    (", " + ", ".join(motion.get("flags")) if motion.get("flags") else "") + ")")
+    if light_on and lv == "fail":
+        hard.append("The skin answered the wrong colour sequence (light fail" +
+                    (", " + ", ".join(light.get("flags")) if light.get("flags") else "") + ")")
+    if pv == "fail":
+        hard.append("Turned to the wrong side (profile fail)")
+    if fv is None:
+        hard.append("No usable face on the document or the selfie")
+    elif fv == "mismatch":
+        hard.append(f"Selfie does not match the document portrait (score {fs})")
+    if hard:
+        return "block", hard
+    if fv == "review":
+        soft.append(f"Face match is borderline (score {fs})")
+    if not integ.get("ok"):
+        soft.append("Capture integrity flags: " + ", ".join(integ.get("flags") or []))
+    if idsig.get("flags"):
+        soft.append("Document flags: " + ", ".join(idsig["flags"]))
+    if motion_on and mv in ("review", "insufficient", "absent", "skipped"):
+        soft.append({"review": "Motion only partly matched the sensors", "insufficient": "Not enough phone movement to judge",
+                     "absent": "No motion burst was received", "skipped": "User skipped the phone-move check (travelling in a vehicle)"}[mv]
+                    + f" (motion {mv}" + (f", score {motion.get('score')}" if mv != "skipped" else "") + ")")
+    if light_on and lv in ("review", "insufficient", "absent", "skipped"):
+        soft.append({"review": "Skin answered the right colours but late / expired challenge",
+                     "insufficient": "Flat light response — too bright, or the video ignores the screen",
+                     "absent": "No light capture was received", "skipped": "User skipped the light check (photosensitivity)"}[lv]
+                    + f" (light {lv}" + (f", score {light.get('score')}" if light.get("score") is not None else "") + ")")
+    if prof_on and pv in ("review", "insufficient", "absent"):
+        soft.append({"review": "Profile turn was partial", "insufficient": "No usable profile turn",
+                     "absent": "No profile burst was received"}[pv] + f" (profile {pv})")
+    if soft:
+        return "step_up", soft
+    return "pass", ["Face matches the document and every enabled liveness check passed"]
 
 
 @app.post("/session/{sid}/capture")
@@ -121,10 +183,15 @@ async def capture(sid: str,
         raise HTTPException(400, "could not decode an image")
     back_img = face_match.imdecode(await id_back.read()) if id_back is not None else None
 
+    timings: dict[str, float] = {}
     # Check 2 — document: straighten, extract the portrait, read the MRZ (optional back)
+    t0 = time.perf_counter()
     idsig, portrait = id_check.check(id_img, back_img)
+    timings["id"] = time.perf_counter() - t0
     # Check 1 — identity: match the selfie against the document PORTRAIT (falls back to the card)
+    t0 = time.perf_counter()
     face = face_match.match(portrait if portrait is not None else id_img, self_img)
+    timings["face"] = time.perf_counter() - t0
     # Check 3 — capture integrity
     try:
         meta_obj = json.loads(meta) if meta else {}
@@ -148,10 +215,16 @@ async def capture(sid: str,
         img = face_match.imdecode(await uf.read())
         if t is not None and img is not None:
             burst.append((float(t), img))
+    t0 = time.perf_counter()
     if motion_enabled:
         motion = motion_check.check(meta_obj.get("motion"), burst)
+        timings["motion"] = time.perf_counter() - t0
     else:
         motion = {"ok": True, "verdict": "absent", "enabled": False, "score": 0.0}
+    if motion_enabled and (meta_obj.get("skipped") or {}).get("motion"):
+        # "I'm in a vehicle" skip on the instruction page: not a penalty, not a proof either.
+        motion = {"ok": False, "verdict": "skipped", "enabled": True, "score": 0.0,
+                  "reason": "user_in_vehicle", "flags": []}
 
     # Check 6 — ID next to face + profile turn (the killer feature). Only when
     # the client enabled it; the expected side comes from the session, not meta.
@@ -164,7 +237,10 @@ async def capture(sid: str,
         img = face_match.imdecode(await uf.read())
         if t is not None and img is not None:
             pburst.append((float(t), img))
+    t0 = time.perf_counter()
     profile = profile_check.check(pburst, SESSIONS[sid].get("profile_side"), prof_enabled)
+    if prof_enabled:
+        timings["profile"] = time.perf_counter() - t0
 
     # Check 5 — light pulse: skin must reflect the colours the screen showed. Frames
     # come as `light_frames` parts matched to meta.light.frames[].file (grab time `t`;
@@ -178,30 +254,23 @@ async def capture(sid: str,
         img = face_match.imdecode(await uf.read())
         if t is not None and img is not None:
             lburst.append((float(t), img))
+    t0 = time.perf_counter()
     light = _light_signal(sid, meta_obj, sorted(lburst, key=lambda x: x[0]), light_enabled)
+    if light_enabled:
+        timings["light"] = time.perf_counter() - t0
 
     # Fusion. The naive app (Act 2) reads `face` only. The mitigated app also
     # weighs integrity + motion + light + profile: a known virtual camera, a video
     # that does not move with the phone, skin that answers the WRONG colours, or a
     # turn to the wrong side -> block; a suspicious-but-not-damning capture (flat
     # light response, opted out, no burst…) -> step up, never a silent pass.
-    prof_v, light_v = profile["verdict"], light["verdict"]
-    if naive:
-        decision = {"match": "pass", "review": "step_up"}.get(face.get("verdict"), "block")
-    elif (integ["hard"] or (motion_enabled and motion["verdict"] == "fail")
-          or (light_enabled and light_v == "fail") or prof_v == "fail"):
-        decision = "block"
-    elif face.get("verdict") in (None, "mismatch"):
-        decision = "block"                   # wrong person, or no usable face at all
-    elif (face.get("verdict") == "review" or not integ["ok"] or idsig["flags"]
-          or (motion_enabled and motion["verdict"] in ("review", "insufficient", "absent"))
-          or (light_enabled and light_v in ("review", "insufficient", "absent", "skipped"))
-          or (prof_enabled and prof_v in ("review", "insufficient", "absent"))):
-        decision = "step_up"                 # doubtful identity, document, capture or liveness
-    else:
-        decision = "pass"
+    decision, reasons = _decide(naive, face, idsig, integ, motion, motion_enabled,
+                                light, light_enabled, profile, prof_enabled)
 
-    result = {"decision": decision, "mode": "naive" if naive else "full",
+    result = {"decision": decision, "mode": "naive" if naive else "full", "reasons": reasons,
+              "checks_enabled": {"motion": motion_enabled, "light": light_enabled, "profile": prof_enabled,
+                                 "doc_back": back_img is not None},
+              "timings_ms": {k: round(v * 1000) for k, v in timings.items()},
               "signals": {"face": face, "id": idsig, "integrity": integ,
                           "motion": motion, "light": light, "profile": profile}}
     SESSIONS[sid]["result"] = result
@@ -211,9 +280,24 @@ async def capture(sid: str,
 
 @app.get("/log")
 def log(limit: int = 50):
-    """Recent scored sessions (newest first) + face-score spread per decision.
-    Internal / analyst use: threshold calibration and the replay dashboard."""
+    """Recent scored sessions (newest first) + counts and score spreads per decision.
+    Internal / analyst use: threshold calibration and the dashboard."""
     return {"stats": audit_log.stats(), "rows": audit_log.recent(limit)}
+
+
+@app.get("/log/{session_id}")
+def log_one(session_id: str):
+    """The full trace of one scored session: every signal, its curves and the decision reasons."""
+    row = audit_log.get(session_id)
+    if row is None:
+        raise HTTPException(404, "unknown session")
+    return row
+
+
+@app.get("/dashboard")
+def dashboard():
+    """Analyst dashboard: aggregates the audit log and shows the trace of any session."""
+    return FileResponse(os.path.join(WEB, "dashboard.html"))
 
 
 @app.get("/session/{sid}/result")

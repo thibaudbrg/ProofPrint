@@ -262,3 +262,16 @@ def test_light_absent_on_old_clients_does_not_step_up(monkeypatch):
                                               "claimsMobile": True, "mode": "full",
                                               "checks": {"motion": False, "profile": False}, "profile": {"enabled": False}})
     assert res["signals"]["light"]["enabled"] is False and res["decision"] == "pass"
+
+
+def test_motion_skipped_in_vehicle_steps_up_with_reason(monkeypatch):
+    # "I'm in a car/train" skip on the phone-move instruction page: no burst is sent, the
+    # check stays enabled, the result is step_up with a readable reason — never a block.
+    monkeypatch.setattr(main.face_match, "match", lambda a, b: {"ok": True, "score": 0.7, "verdict": "match"})
+    monkeypatch.setattr(main, "NAIVE", False)
+    res = _switch_post(TestClient(main.app), {
+        "label": "front", "settings": {"facingMode": "user"}, "hasMotion": True, "claimsMobile": True, "mode": "full",
+        "checks": {"motion": True, "profile": False, "light": False}, "profile": {"enabled": False}, "skipped": {"motion": True}})
+    assert res["signals"]["motion"]["verdict"] == "skipped" and res["signals"]["motion"]["enabled"] is True
+    assert res["decision"] == "step_up"
+    assert any("vehicle" in r for r in res["reasons"])

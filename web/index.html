@@ -24,6 +24,14 @@
   .app{width:100%;max-width:440px;height:100dvh;overflow:hidden;display:flex;flex-direction:column;
        padding:0 20px calc(20px + env(safe-area-inset-bottom));padding-top:calc(16px + env(safe-area-inset-top))}
   .brand{display:flex;align-items:center;gap:9px;padding:4px 0 2px}
+  .brand .badge{margin-left:2px;font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--block);background:var(--block-bg);border-radius:999px;padding:2px 8px}
+  .gear{margin-left:auto;width:34px;height:34px;border-radius:50%;background:transparent;color:var(--ink-2);padding:6px;border:1px solid transparent}
+  .gear:active{background:var(--line)} .gear svg{width:100%;height:100%;display:block}
+  /* demo settings sheet */
+  .sheet-bg{position:fixed;inset:0;z-index:60;background:rgba(28,26,23,.45);display:flex;align-items:flex-end;justify-content:center}
+  .sheet{width:100%;max-width:440px;background:var(--bg);border-radius:22px 22px 0 0;padding:14px 20px calc(24px + env(safe-area-inset-bottom));box-shadow:0 -10px 40px rgba(0,0,0,.2)}
+  .sheet-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .toggle input:disabled + .switch{opacity:.5}
   .brand svg{width:20px;height:20px}
   .brand span{font-family:'Space Mono','Hanken Grotesk',monospace;font-weight:700;letter-spacing:.22em;font-size:12px;color:var(--ink-2)}
   h1{font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:28px;line-height:1.1;margin:0;letter-spacing:-.01em;text-wrap:balance}
@@ -46,9 +54,10 @@
 
   /* ---- intro: feature switches ---- */
   .toggles{display:flex;flex-direction:column;gap:8px}
-  .toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;
+  .toggle-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px 11px 14px;
           border:1px solid var(--line);border-radius:14px;background:var(--surface);cursor:pointer;transition:opacity .15s}
-  .toggle b{display:block;font-size:14px}
+  .toggle b{display:block;font-size:14px;font-weight:600}
   .toggle small{display:block;color:var(--ink-2);font-size:11.5px;line-height:1.3;margin-top:1px}
   .toggle.dim{opacity:.38}
   .switch{position:relative;width:44px;height:26px;border-radius:13px;background:var(--line);flex:none;transition:background .15s}
@@ -72,6 +81,11 @@
   .card .tick.tr,.cardslot .tick.tr{top:-2px;right:-2px;border-top-width:3px;border-right-width:3px;border-top-right-radius:14px}
   .card .tick.bl,.cardslot .tick.bl{bottom:-2px;left:-2px;border-bottom-width:3px;border-left-width:3px;border-bottom-left-radius:14px}
   .card .tick.br,.cardslot .tick.br{bottom:-2px;right:-2px;border-bottom-width:3px;border-right-width:3px;border-bottom-right-radius:14px}
+  /* flashlight toggle on the document viewport (only shown when the camera has a torch) */
+  .torch{position:absolute;top:12px;right:12px;z-index:3;width:42px;height:42px;border-radius:50%;padding:10px;
+         background:rgba(12,12,13,.55);color:#fff;border:1.5px solid rgba(255,255,255,.7);backdrop-filter:blur(6px)}
+  .torch svg{width:100%;height:100%;display:block}
+  .torch[aria-pressed="true"]{background:#fff;color:var(--ink);border-color:#fff}
   .hint{position:absolute;left:0;right:0;bottom:14px;text-align:center;color:#fff;font-size:13.5px;font-weight:600;
         text-shadow:0 1px 6px rgba(0,0,0,.6);z-index:2;padding:0 14px}
   .hint.warn{color:#FFD27A}
@@ -170,6 +184,13 @@
       <circle cx="12" cy="12" r="7"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="var(--ink)"></path>
       <circle cx="12" cy="12" r="2" fill="var(--accent)" stroke="none"></circle></svg>
     <span>PROOFPRINT</span>
+    <span class="badge" id="naiveBadge" hidden>NAÏVE APP</span>
+    <button class="gear" id="gear" aria-label="Demo settings" title="Demo settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path>
+      </svg>
+    </button>
   </div>
 
   <!-- INTRO -->
@@ -178,32 +199,6 @@
       <span class="eyebrow">Digital onboarding</span>
       <h1>Let's confirm it's really you.</h1>
       <p style="font-size:14px">Photograph your ID, take a selfie, follow the outline. All on this phone.</p>
-    </div>
-    <div class="toggles" style="margin-top:4px">
-      <label class="toggle naive" for="tNaive">
-        <span><b>Demo: naïve app (Act 2)</b><small>Decides on the face + document only. Liveness is skipped — this is the app a deepfake fools.</small></span>
-        <input type="checkbox" id="tNaive"><span class="switch" aria-hidden="true"></span>
-      </label>
-      <label class="toggle" for="tDoc">
-        <span><b>Document back &amp; MRZ</b><small>Also photograph the back of the card and read the machine-readable zone.</small></span>
-        <input type="checkbox" id="tDoc" checked><span class="switch" aria-hidden="true"></span>
-      </label>
-      <label class="toggle" for="tLight">
-        <span><b>Light check (screen colours ↔ skin)</b><small>The screen flashes a random colour sequence for ~5 s. Your face must reflect it — a recording can't.</small></span>
-        <input type="checkbox" id="tLight" checked><span class="switch" aria-hidden="true"></span>
-      </label>
-      <label class="toggle" for="tMotion">
-        <span><b>Phone-move check (gyroscope ↔ video)</b><small>After the selfie, move the phone to follow the outline. The picture must move with the sensors.</small></span>
-        <input type="checkbox" id="tMotion" checked><span class="switch" aria-hidden="true"></span>
-      </label>
-      <label class="toggle" for="killer">
-        <span><b>ID + profile turn</b><small>Hold your ID in your left hand, then turn to the side we pick. Face-swaps break at a full profile.</small></span>
-        <input type="checkbox" id="killer" checked><span class="switch" aria-hidden="true"></span>
-      </label>
-      <label class="toggle naive" for="tInject">
-        <span><b>Demo: live face mask (deepfake)</b><small>Attack. Your live selfie is masked with another face in real time before the server sees it.</small></span>
-        <input type="checkbox" id="tInject"><span class="switch" aria-hidden="true"></span>
-      </label>
     </div>
     <video id="maskCam" muted playsinline autoplay hidden></video>
     <canvas id="injectCanvas" hidden></canvas>
@@ -225,6 +220,10 @@
       <canvas id="idFeed" class="feed"></canvas>
       <img id="idShot" hidden alt="">
       <div class="guide card" id="idGuide"><span class="tick tl"></span><span class="tick tr"></span><span class="tick bl"></span><span class="tick br"></span></div>
+      <button class="torch" id="idTorch" hidden aria-label="Flashlight" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 3h12v4l-3 3v11H9V10L6 7z"></path><path d="M12 13v3"></path></svg>
+      </button>
       <div class="hint" id="idHint">Line up your ID and tap the button</div>
     </div>
     <div id="idCapRow"><div class="shutter" id="idShutter" role="button" aria-label="Capture document"></div>
@@ -322,7 +321,7 @@
         </svg>
       </div>
       <div class="ins-steps" id="insSteps"></div>
-      <div class="ins-warn" id="insWarn" hidden><span>⚠</span><span>This step shows <b>flashing colours</b> (about one change per half second). If flashing lights affect you, skip it — you'll get an alternative check instead.</span></div>
+      <div class="ins-warn" id="insWarn" hidden><span>⚠</span><span id="insWarnText"></span></div>
       <p class="meta" id="insNote"></p>
     </div>
     <button class="btn" id="insGo">I'm ready</button>
@@ -354,6 +353,30 @@
   </section>
 </div>
 
+<!-- DEMO SETTINGS (PoC only — hidden behind the gear, a normal user never sees this) -->
+<div class="sheet-bg" id="sheetBg" hidden>
+  <div class="sheet" role="dialog" aria-label="Demo settings">
+    <div class="sheet-h"><span class="eyebrow">Demo settings</span><button class="btn-link" id="sheetClose">Done</button></div>
+    <div class="toggles">
+      <label class="toggle naive" for="tNaive">
+        <span><b>Naïve app</b><small>face + document only — the app a deepfake fools</small></span>
+        <input type="checkbox" id="tNaive"><span class="switch" aria-hidden="true"></span>
+      </label>
+      <label class="toggle naive" for="tInject">
+        <span><b>Live face mask (deepfake)</b><small>attack — masks your live selfie with another face before the server sees it</small></span>
+        <input type="checkbox" id="tInject"><span class="switch" aria-hidden="true"></span>
+      </label>
+      <span class="eyebrow" style="margin-top:6px">Liveness checks</span>
+      <div class="toggle-grid">
+        <label class="toggle" for="tDoc"><b>Document back</b><input type="checkbox" id="tDoc" checked><span class="switch" aria-hidden="true"></span></label>
+        <label class="toggle" for="tLight"><b>Light</b><input type="checkbox" id="tLight" checked><span class="switch" aria-hidden="true"></span></label>
+        <label class="toggle" for="tMotion"><b>Phone move</b><input type="checkbox" id="tMotion" checked><span class="switch" aria-hidden="true"></span></label>
+        <label class="toggle" for="killer"><b>Profile turn</b><input type="checkbox" id="killer" checked><span class="switch" aria-hidden="true"></span></label>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- CHECK 5: full-screen colour surface (only the small self-view, a hint and a bar sit on it) -->
 <div id="lightFlash" hidden>
   <canvas id="lightThumb" aria-hidden="true"></canvas>
@@ -379,9 +402,26 @@ const injectOn = () => $("tInject").checked;
 // Warm up the mask model/source when the attack toggle is switched on, so the
 // first selfie doesn't stall while it downloads.
 $("tInject").addEventListener("change", () => { if ($("tInject").checked && window.FaceMask) window.FaceMask.ensureReady().catch(()=>{}); });
-$("tNaive").addEventListener("change", () => {
-  ["tLight","tMotion","killer"].forEach(id => $(id).closest(".toggle").classList.toggle("dim", naiveOn()));
-});
+// Naïve = face + document only: the liveness switches are turned OFF and greyed out (their
+// previous state comes back when naïve is switched off). The badge in the brand bar shows
+// which app is running during the demo.
+const LIVE = ["tLight","tMotion","killer"];
+let liveSaved = null;
+function applyNaive(){
+  const on = naiveOn();
+  if (on && !liveSaved) liveSaved = Object.fromEntries(LIVE.map(id => [id, $(id).checked]));
+  LIVE.forEach(id => { const el = $(id);
+    if (on) el.checked = false; else if (liveSaved) el.checked = liveSaved[id];
+    el.disabled = on; el.closest(".toggle").classList.toggle("dim", on); });
+  if (!on) liveSaved = null;
+  $("naiveBadge").hidden = !on;
+}
+$("tNaive").addEventListener("change", applyNaive);
+applyNaive();
+// PoC settings live behind the gear (top right); a normal user never opens it.
+$("gear").onclick = () => { $("sheetBg").hidden = false; };
+$("sheetClose").onclick = () => { $("sheetBg").hidden = true; };
+$("sheetBg").addEventListener("click", e => { if (e.target === $("sheetBg")) $("sheetBg").hidden = true; });
 
 let stream = null, idBlob = null, idBackBlob = null, idFrontUrl = null, selfieBlob = null;
 let idSide = "front";                      // the ID screen is reused for the back of the card
@@ -393,16 +433,19 @@ let lastT = 0, frameCount = 0;
 // ---- Check 4 (phone-move) + 6 (ID + profile): recorded on the LIVE feed after the still selfie ----
 // Phase A (check 4): a big phone glyph slides in the centre; the user moves the PHONE (pan
 // left-right / up-down, not roll, not the head). We record low-res frames + devicemotion (rotationRate deg/s + acceleration m/s^2) on one
-// performance.now() clock. Ends once enough rotation is banked (min A_MIN_MS, max A_MAX_MS).
+// performance.now() clock. Fixed length (A_MS); the rotation is only used to coach the user.
 // Phase B (check 6, simplified): "hold your ID in your LEFT hand, turn your head <side>" —
 // same stream, ~480 px frames. The ID-in-hand is a demo/UX instruction only; nothing about
 // the card is detected. What's actually scored is the head turn (yaw), the one signal
 // confirmed correct on a real phone.
-const A_MIN_MS = 5000, A_MAX_MS = 7000, A_FRAME_MS = 80, A_W = 320, A_ROT_DEG = 35;
-const B_MS = 2800, B_FRAME_MS = 110, B_W = 480;
+const A_MS = 6000, A_FRAME_MS = 80, A_W = 320, A_ROT_DEG = 35;   // fixed 6 s — the bar is the clock, never early
+const A_SWING_DEG = 18, A_NUDGE_MS = 1300;                        // haptic coach: buzz at each ±18° swing, nudge if stalled
+const B_MS = 4500, B_FRAME_MS = 110, B_W = 480;          // recording window, starts when the head starts to move
+const B_ARM_MAX_MS = 12000, B_SETTLE_MS = 800, B_PREROLL_MS = 600;   // wait for the turn (max), settle, frontal pre-roll
+const B_MOVE_THRESH = 6.0, B_MOVE_TICKS = 2;               // mean |Δ| in the centre patch (8-bit), consecutive ticks
 let session = null;                       // {session_id, profile_side}
 let burstFrames = [], profileFrames = [], lightFrames = []; // [{name, blob}] — match meta.frames / meta.profile.frames / meta.light.frames
-let recordingMotion = false, rotAccum = 0, lastMotionT = 0;
+let recordingMotion = false, rotAccum = 0, lastMotionT = 0, yawAngle = 0;
 function onMotion(e){
   const r = e.rotationRate; if(!r || r.alpha==null) return;
   meta.hasMotion = true;
@@ -412,8 +455,21 @@ function onMotion(e){
   // up/down -> picture slides vertically), beta = about Y (yaw, door-turn -> slides horizontally),
   // gamma = about Z (roll -> hardly moves the picture). Verified on an iPhone: a door-turn shows in beta.
   meta.motion.push({ t, rx:r.alpha, ry:r.beta, rz:r.gamma, ax:a.x, ay:a.y, az:a.z });
-  if(lastMotionT){ const dt=(t-lastMotionT)/1000; rotAccum += Math.hypot(r.alpha||0, r.beta||0)*dt; }
+  if(lastMotionT){ const dt=(t-lastMotionT)/1000; rotAccum += Math.hypot(r.alpha||0, r.beta||0)*dt; yawAngle += (r.beta||0)*dt; }
   lastMotionT = t;
+}
+
+// Haptics. Android: navigator.vibrate. iOS Safari has no vibration API; toggling a native
+// <input type="checkbox" switch> is the only thing that clicks the Taptic engine from a web
+// page (iOS 17.4+; silent on older versions — best effort, never required).
+const hapticSwitch = document.createElement("input");
+hapticSwitch.type = "checkbox"; hapticSwitch.setAttribute("switch", ""); hapticSwitch.tabIndex = -1;
+hapticSwitch.style.cssText = "position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none";
+document.body.appendChild(hapticSwitch);
+function haptic(kind){
+  const pattern = { strong:[45], tick:[12], double:[25,60,25] }[kind] || [20];
+  if (navigator.vibrate) { try { navigator.vibrate(pattern); return; } catch(_){} }
+  try { hapticSwitch.click(); if (kind === "double") setTimeout(() => hapticSwitch.click(), 90); } catch(_){}
 }
 function grabFrames(videoEl, width, everyMs, list, metaList, prefix, untilFn, onTick){
   const c = document.createElement("canvas");
@@ -443,13 +499,13 @@ function instruct(kind, side){
       "Hold the phone in front of your face, arm half bent.",
       "Slowly <b>turn the phone left and right</b> around its upright axis — like showing your screen to someone beside you. Don't spin it like a steering wheel.",
       "Keep your face inside the outline. Move the <b>phone</b>, not your head.",
-      "Keep going until the bar is full — about 5 seconds."]
+      "Feel the buzz? That's one swing — now go the other way. Keep going until the bar is full (6 seconds)."]
     : kind === "light" ? [
       "Hold the phone about <b>a hand-span (20–25 cm)</b> from your face, straight in front of you.",
       "<b>Look at the screen and keep still.</b> It will show a few colours for about 5 seconds.",
       "Tip: turn your <b>screen brightness up</b> and stay away from windows and direct sunlight."]
     : [ `Hold your ID card in your <b>left hand</b>.`,
-        `Slowly turn your head to the <b>${side.toUpperCase()}</b> until we only see your profile.`,
+        `Take your time. When you're ready, <b>slowly</b> turn your head to the <b>${side.toUpperCase()}</b> until we only see your profile — the clock only starts when you start turning.`,
         "Keep going for about 3 seconds — an arrow will point the way."];
   $("insTitle").textContent = { move:"Now turn your phone", light:"Quick light check", profile:"Now hold your ID and turn" }[kind];
   $("insSteps").innerHTML = steps.map((t,i) => `<div><span class="n">${i+1}</span><span>${t}</span></div>`).join("");
@@ -457,8 +513,10 @@ function instruct(kind, side){
                                light:"Your skin must reflect a colour sequence we pick right now — a recording or a face-swap can't.",
                                profile:"Face-swap tools fall apart once the head reaches a full profile." }[kind];
   $("insArtPhone").hidden = kind !== "move"; $("insArtProfile").hidden = kind !== "profile"; $("insArtLight").hidden = kind !== "light";
-  $("insWarn").hidden = kind !== "light";
-  const skip = $("insSkip"); skip.hidden = kind !== "light";
+  const WARN = { light: "This step shows <b>flashing colours</b> (about one change per half second). If flashing lights affect you, skip it — you'll get an alternative check instead.",
+                 move: "Make sure you are <b>standing or sitting still</b> — not in a moving car, train or tram. The sensors would feel the vehicle, not you. If you are travelling, skip this step." };
+  $("insWarn").hidden = !WARN[kind]; $("insWarnText").innerHTML = WARN[kind] || "";
+  const skip = $("insSkip"); skip.hidden = !WARN[kind];
   // reduced-motion users get the opt-out as a full button
   skip.className = (kind === "light" && matchMedia("(prefers-reduced-motion: reduce)").matches) ? "btn-ghost" : "btn-link";
   if (kind === "profile") $("insArrow").setAttribute("transform", side === "left" ? "" : "translate(220 0) scale(-1 1)");
@@ -484,44 +542,101 @@ async function phaseLight(videoEl){
 
 async function phaseMove(videoEl){
   const hint = $("selfieHint"), bar = $("liveProgress"), fill = bar.querySelector("i");
-  burstFrames = []; meta.frames = []; meta.motion = []; rotAccum = 0; lastMotionT = 0;
+  burstFrames = []; meta.frames = []; meta.motion = []; rotAccum = 0; lastMotionT = 0; yawAngle = 0;
+  $("selfieOverlay").hidden = true;                       // no silhouette here — just the turning phone
   $("phoneGlyph").hidden = false; bar.hidden = false; fill.style.width = "0%";
-  hint.className = "hint big"; hint.textContent = "Turn the phone left and right… 5";
+  hint.className = "hint big";
+  // Coach: the user should swing the phone left, then right, then left… Each time the integrated
+  // yaw moves A_SWING_DEG past the last turning point we buzz (reward) and ask for the other side.
+  // If nothing happens for A_NUDGE_MS we tick softly and say "more".
+  let anchor = 0, dir = "left", lastSwingT = performance.now(), swings = 0;
+  const say = extra => { hint.innerHTML = `Turn the phone <b>${dir.toUpperCase()}</b> ${dir === "left" ? "⟵" : "⟶"}${extra ? " · " + extra : ""}`; };
+  say("slowly");
   meta.events.push({ name:"tilt_start", t:performance.now() });
   recordingMotion = true;
   const tA = performance.now();
+  haptic("double");                                       // "go"
   await grabFrames(videoEl, A_W, A_FRAME_MS, burstFrames, meta.frames, "",
-    now => (now - tA >= A_MIN_MS && rotAccum >= A_ROT_DEG) || now - tA >= A_MAX_MS,
-    now => { const p = Math.min(1, Math.max((now-tA)/A_MAX_MS, rotAccum/A_ROT_DEG));
-             fill.style.width = (p*100).toFixed(0) + "%";
-             const left = Math.ceil((A_MIN_MS - (now-tA))/1000);
-             hint.textContent = left > 0 ? `Turn the phone left and right… ${left}` : (rotAccum < A_ROT_DEG ? "A bit more — turn the PHONE, not your head" : "Got it ✓"); });
+    now => now - tA >= A_MS,
+    now => { fill.style.width = (Math.min(1, (now - tA) / A_MS) * 100).toFixed(0) + "%";
+             const left = Math.ceil((A_MS - (now - tA)) / 1000);
+             if (Math.abs(yawAngle - anchor) >= A_SWING_DEG) {     // reached a turning point
+               anchor = yawAngle; swings++; lastSwingT = now; dir = dir === "left" ? "right" : "left";
+               haptic("strong"); say(`${left} s`);
+             } else if (now - lastSwingT > A_NUDGE_MS) {           // stalled: nudge
+               lastSwingT = now - A_NUDGE_MS * 0.55;                 // next nudge in ~0.6 s
+               haptic("tick"); say(swings ? "a bit more" : "turn the PHONE, not your head");
+             } else say(`${left} s`); });
+  haptic("double");                                       // "done"
   meta.events.push({ name:"tilt_end", t:performance.now() });
   recordingMotion = false;
-  $("phoneGlyph").hidden = true; bar.hidden = true; hint.className = "hint";
+  $("phoneGlyph").hidden = true; bar.hidden = true; hint.className = "hint"; $("selfieOverlay").hidden = false;
 }
 
 // Check 6, simplified: the ID-in-hand is a spoken/instruction-screen cue only —
 // nothing about the card is detected here. What's scored is the head turn.
+// Cheap "is the head moving?" detector for the profile phase: mean absolute difference between
+// consecutive 48-px frames in the centre of the picture (the phone is still, only the head moves).
+function motionProbe(videoEl){
+  const c = document.createElement("canvas"); c.width = 64; c.height = 48;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  let prev = null;
+  return () => {
+    ctx.drawImage(videoEl, 0, 0, 64, 48);
+    const d = ctx.getImageData(12, 6, 40, 36).data;          // centre patch only
+    const g = new Float32Array(d.length / 4);
+    for (let i = 0, j = 0; i < d.length; i += 4, j++) g[j] = (d[i] + d[i+1] + d[i+2]) / 3;
+    let e = 0;
+    if (prev) { for (let j = 0; j < g.length; j++) e += Math.abs(g[j] - prev[j]); e /= g.length; }
+    prev = g;
+    return e;
+  };
+}
+
 async function phaseProfile(videoEl){
   const hint = $("selfieHint"), bar = $("liveProgress"), fill = bar.querySelector("i");
   profileFrames = []; meta.profile.frames = [];
   const side = (session && session.profile_side) || "left";
   meta.profile.enabled = true; meta.profile.side = side;
-  const arrow = $("profileArrow");
+  const arrow = $("profileArrow"), SIDE = side.toUpperCase(), glyph = side === "left" ? "⟵" : "⟶";
   // The preview is mirrored, so the arrow points the way the user sees it.
   arrow.className = "arrow " + side; arrow.textContent = side === "left" ? "⬅" : "➡"; arrow.hidden = false;
-  hint.className = "hint big"; hint.textContent = `ID in your left hand · turn ${side.toUpperCase()}`;
+  hint.className = "hint big"; hint.innerHTML = `ID in your left hand · when you're ready, slowly turn <b>${SIDE}</b> ${glyph}`;
   bar.hidden = false; fill.style.width = "0%";
   meta.events.push({ name:"profile_start", t:performance.now() });
   recordingMotion = true;
-  const tB = performance.now();
+  // Two states. ARMED: we film but the clock does not run — the user takes their time to get the
+  // card up and understand the arrow. The clock (B_MS) starts the moment the head starts to move
+  // (motion probe), or after B_ARM_MAX_MS at the latest. Frames before the start are dropped
+  // except a short frontal pre-roll (the server wants a frontal frame first).
+  const probe = motionProbe(videoEl);
+  const t0 = performance.now();
+  let tStart = null, moveTicks = 0;
   await grabFrames(videoEl, B_W, B_FRAME_MS, profileFrames, meta.profile.frames, "p",
-    now => now - tB >= B_MS,
-    now => { fill.style.width = (Math.min(1,(now-tB)/B_MS)*100).toFixed(0) + "%";
-             hint.textContent = `Turn ${side.toUpperCase()} all the way… ${Math.ceil((B_MS-(now-tB))/1000)}`; });
+    now => tStart !== null && now - tStart >= B_MS,
+    now => {
+      if (tStart === null) {
+        const e = now - t0 > B_SETTLE_MS ? probe() : 0;
+        moveTicks = e >= B_MOVE_THRESH ? moveTicks + 1 : 0;
+        if (moveTicks >= B_MOVE_TICKS || now - t0 >= B_ARM_MAX_MS) {
+          tStart = now; meta.events.push({ name:"profile_turn_detected", t:now });
+          haptic("tick");
+        } else if (now - t0 > 4000) hint.innerHTML = `Waiting for you · slowly turn your head <b>${SIDE}</b> ${glyph}`;
+        return;
+      }
+      fill.style.width = (Math.min(1, (now - tStart) / B_MS) * 100).toFixed(0) + "%";
+      const left = Math.ceil((B_MS - (now - tStart)) / 1000);
+      hint.innerHTML = left > 2 ? `Keep turning <b>${SIDE}</b> ${glyph} · all the way to your profile · ${left}`
+                                : `Hold it there… ${left}`;
+    });
+  haptic("double");
   meta.events.push({ name:"profile_end", t:performance.now() });
   recordingMotion = false; arrow.hidden = true; bar.hidden = true; hint.className = "hint";
+  // Drop the waiting frames (keep a short frontal pre-roll before the turn started).
+  const tCut = (tStart ?? t0) - B_PREROLL_MS;
+  const keep = new Set(meta.profile.frames.filter(f => f.t >= tCut).map(f => f.file));
+  meta.profile.frames = meta.profile.frames.filter(f => keep.has(f.file));
+  profileFrames = profileFrames.filter(f => keep.has(f.name));
 }
 
 // ---- camera plumbing ----
@@ -532,7 +647,7 @@ async function injectedStream(){
   if (!window.FaceMask) throw new Error("face mask module not loaded");
   return await window.FaceMask.start();
 }
-async function stopStream(){ stopInject(); if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }
+async function stopStream(){ stopInject(); if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } torchOn=false; $("idTorch").hidden=true; }
 async function startCamera(videoEl, facing, collectMeta){
   await stopStream();
   stream = (injectOn() && facing === "user") ? await injectedStream() : await navigator.mediaDevices.getUserMedia({
@@ -573,6 +688,23 @@ function blurHint(el, sharp){
 }
 const HINT_ID="Line up your ID and tap the button", HINT_ID_BACK="Line up the back — the «<<<» lines — and tap",
       HINT_SELFIE="Center your face and tap the button";
+// Flashlight for the document shots: shown only when the rear camera reports a torch
+// (Android Chrome; iOS Safari 17+ on the back camera). Off again whenever the stream stops.
+let torchOn = false;
+function torchTrack(){ return stream && stream.getVideoTracks()[0]; }
+function torchAvailable(){
+  const t = torchTrack(); if(!t || !t.getCapabilities) return false;
+  try { return !!t.getCapabilities().torch; } catch(_){ return false; }
+}
+async function setTorch(on){
+  const t = torchTrack(); if(!t) return;
+  try { await t.applyConstraints({ advanced:[{ torch: on }] }); torchOn = on; }
+  catch(_){ torchOn = false; }
+  $("idTorch").setAttribute("aria-pressed", String(torchOn));
+}
+function showTorchBtn(){ torchOn = false; $("idTorch").setAttribute("aria-pressed", "false"); $("idTorch").hidden = !torchAvailable(); }
+$("idTorch").onclick = () => setTorch(!torchOn);
+
 function resetIdCapture(){
   $("idShot").hidden=true; $("idGuide").hidden=false; $("idFeed").hidden=false;
   startFeed($("idVideo"), $("idFeed"), false);
@@ -580,6 +712,7 @@ function resetIdCapture(){
   $("idHint").textContent = idSide==="front" ? HINT_ID : HINT_ID_BACK;
   $("idConfirm").hidden=true; $("idCapRow").hidden=false;
   $("idSkipBack").hidden = idSide!=="back";
+  showTorchBtn();
 }
 function setIdSide(side){
   idSide = side;
@@ -670,7 +803,7 @@ $("begin").onclick = async () => {
   $("selfieCopy").innerHTML = naiveOn() ? "Put your face inside the outline and tap. <b>Naïve mode:</b> no liveness checks."
     : "Put your face inside the outline and tap." + (lightOn() ? " Then <b>look at the screen</b> while it shows a few colours." : "") + (motionOn() ? " Then <b>move the phone</b> to follow the outline." : "") + (killerOn() ? " Then hold your ID in your left hand and turn." : "");
   show("idScreen");
-  try { await startCamera($("idVideo"), {ideal:"environment"}, false); startFeed($("idVideo"), $("idFeed"), false); }
+  try { await startCamera($("idVideo"), {ideal:"environment"}, false); startFeed($("idVideo"), $("idFeed"), false); showTorchBtn(); }
   catch(e){ $("idHint").textContent = "Camera error: " + e.message; }
 };
 
@@ -678,7 +811,7 @@ $("begin").onclick = async () => {
 $("idShutter").onclick = async () => {
   const out = await cropToGuide($("idVideo"), $("idFeed"), $("idGuide")); if(!out) return; const {blob,url,sharp}=out; stopFeed();
   if (idSide==="front"){ idBlob = blob; idFrontUrl = url; } else { idBackBlob = blob; }
-  $("idShot").src = url; $("idShot").hidden=false; $("idGuide").hidden=true; $("idSkipBack").hidden=true;
+  $("idShot").src = url; $("idShot").hidden=false; $("idGuide").hidden=true; $("idSkipBack").hidden=true; $("idTorch").hidden=true;
   $("idFeed").hidden=true; blurHint($("idHint"), sharp);
   $("idCapRow").hidden=true; $("idConfirm").hidden=false;
 };
@@ -700,22 +833,22 @@ $("selfieShutter").onclick = async () => {
   if(recordingMotion || $("selfieCapRow").hidden) return;
   const out = await cropToGuide($("selfieVideo"), $("selfieFeed"), $("selfieGuide"), 900); if(!out) return;
   selfieBlob = out.blob; $("selfieShot").src = out.url;
-  stopFeed();                                          // freeze on the still; the stream stays open for the phases
-  $("selfiePreview").src = out.url; $("selfiePreview").hidden = false; $("selfieFeed").hidden = true; $("selfieOverlay").hidden = true;
-  $("shotToast").hidden = false; setTimeout(() => $("shotToast").hidden = true, 1400);
-  blurHint($("selfieHint"), out.sharp);
-  $("selfieCapRow").hidden = true; $("selfieConfirm").hidden = false;
+  stopFeed();                                          // the stream stays open for the live phases
+  $("selfieCapRow").hidden = true; $("selfieHint").hidden = true;
+  haptic("tick");
+  runLivePhases();                                     // no preview, no confirm — straight on
 };
 function resumeSelfieFeed(){
   $("selfiePreview").hidden = true; $("selfieFeed").hidden = false; $("selfieOverlay").hidden = false;
   startFeed($("selfieVideo"), $("selfieFeed"), true);
 }
-$("selfieRetake").onclick = () => {
+$("selfieRetake").onclick = () => {                  // (confirm row is no longer shown; kept for safety)
   selfieBlob = null; resumeSelfieFeed();
   $("selfieHint").className = "hint"; $("selfieHint").textContent = HINT_SELFIE; $("selfieHint").hidden = false;
   $("selfieConfirm").hidden = true; $("selfieCapRow").hidden = false;
 };
-$("selfieUse").onclick = async () => {
+$("selfieUse").onclick = () => runLivePhases();
+async function runLivePhases(){
   $("selfieConfirm").hidden = true;
   const v = $("selfieVideo");
   try {
@@ -727,9 +860,9 @@ $("selfieUse").onclick = async () => {
       else if (session) { show("selfieScreen"); await phaseLight(v); }
     }
     if (motionOn()) {
-      await instruct("move");                          // full-page explanation, then the live phase
-      show("selfieScreen"); resumeSelfieFeed();
-      await phaseMove(v); stopFeed();
+      const go = await instruct("move");               // full-page explanation, then the live phase
+      if (!go) { meta.skipped = { ...(meta.skipped || {}), motion: true }; burstFrames = []; meta.frames = []; meta.motion = []; }
+      else { show("selfieScreen"); resumeSelfieFeed(); await phaseMove(v); stopFeed(); }
     }
     if (killerOn()) {
       await instruct("profile", (session && session.profile_side) || "left");
@@ -738,7 +871,7 @@ $("selfieUse").onclick = async () => {
     }
   } finally { recordingMotion = false; }
   stopFeed(); stopStream(); submit();
-};
+}
 
 // ---- SUBMIT ----
 async function submit(){
@@ -810,7 +943,7 @@ function render(res){
 $("restart").onclick = () => {
   idBlob=idBackBlob=selfieBlob=null; idFrontUrl=null; session=null;
   meta.frameIntervals=[]; meta.hasMotion=false; meta.frames=[]; meta.motion=[]; meta.events=[];
-  meta.profile={enabled:false, side:null, frames:[]}; delete meta.light; burstFrames=[]; profileFrames=[]; lightFrames=[];
+  meta.profile={enabled:false, side:null, frames:[]}; delete meta.light; delete meta.skipped; burstFrames=[]; profileFrames=[]; lightFrames=[];
   $("lightFlash").hidden=true; document.documentElement.style.background="";
   stopStream();
   setIdSide("front"); resetIdCapture(); $("docBox").hidden=true;

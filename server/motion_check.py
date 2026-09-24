@@ -118,7 +118,8 @@ def global_flow(frames: list[tuple[float, np.ndarray]],
             a = greys[i - 1].astype(np.float32)
             b = greys[i].astype(np.float32)
             if face_box is not None:            # still keep the face out of it
-                a = a * (mask / 255.0); b = b * (mask / 255.0)
+                m = (mask / 255.0).astype(np.float32)   # float32 like `win`, or phaseCorrelate asserts
+                a = a * m; b = b * m
             (dx, dy), _ = cv2.phaseCorrelate(a, b, win)
         t_mid.append((frames[i][0] + frames[i - 1][0]) / 2.0)
         vx.append(dx / dt)
