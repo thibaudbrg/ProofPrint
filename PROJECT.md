@@ -19,6 +19,27 @@ changes" entries below for both branches' full history. `web/index.html`'s big i
 restructuring (Tibo's) was kept; the Phase-B copy/guide inside it was adjusted for the v3
 simplification (ID in the left hand, no on-screen card slot). Only PROJECT.md conflicted in the pull.
 
+**2026-09-24 (late) — Demo attack: "Inject deepfake video" toggle (Vasiliy, touches `web/`).**
+Intro screen has a switch `tInject` ("live face mask (deepfake)"). When on, `startCamera()` for
+the selfie phases returns a **live in-browser face mask** instead of the camera: `web/facemask.js`
+opens the front camera, runs MediaPipe FaceLandmarker (478 pts) on each frame, warps a still
+source face (`web/attack/source_face.jpg`, the teammate) onto the live face via Delaunay triangle
+affine warps, draws to a canvas and hands back `canvas.captureStream(30)`. ID capture stays on
+the real rear camera. **The server is not told.** This is Option C in `../notes/08` — it runs on
+the *phone* (no OS virtual camera needed, because we own the page), which is why we chose it over
+the OBS/desktop live route. It's a Snapchat-lens-grade overlay, not an offline swap: it warps at a
+full profile and fast motion, which is exactly Act 2's profile-turn catch. Expected: naive+mask →
+verified (face matches the source identity, so hold the source person's ID); full+mask → review
+(the masked face can't reflect the light nonce, warps on the profile turn). Deps load from CDN
+(jsDelivr MediaPipe + Delaunator, googleapis model ~3.7MB) — needs internet at the venue.
+`web/attack/source_face.jpg` is generated from a frontal photo (see `notes/08`); regenerate it for
+a different mask face. **Fallback:** `web/attack/deepfake.mp4` (the earlier pre-rendered swap,
+`tools/render_deepfake.sh`) is still on disk; if the live mask is too slow on the venue phone,
+revert `injectedStream()` to the mp4/canvas version in git history. Raw inputs `video.mp4` /
+`vasiliy.heic` / `IMG_8633.jpg` in the repo root are untracked and should stay so.
+Tested statically: page + `facemask.js` + `source_face.jpg` served (200), inline + module syntax
+OK, all three CDNs reachable. **On-phone run is still TODO** (can't test a phone camera from here).
+
 **⚠ Ownership note:** touches `server/profile_check.py`, `server/main.py` (one call site),
 `web/index.html` (Phase B copy + guide, plus a new prep screen before the live capture),
 `contract/contract.md`, this file. One feature, small diff — see "Recent changes" below.
