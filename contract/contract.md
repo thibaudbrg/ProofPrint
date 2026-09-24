@@ -140,6 +140,12 @@ without a validated benefit).
 first given name only — for threshold calibration.
 `decision` ∈ `pass | step_up | block | pending`. `mode` ∈ `full | naive`
 (`PROOFPRINT_MODE=naive` = the broken app: decides on `face` only).
+The result also carries `reasons: ["…"]` (one human-readable line per trigger of the decision),
+`checks_enabled: { motion, light, profile, doc_back }` and `timings_ms: { id, face, light, motion, profile }`
+(server compute per check). **Analyst endpoints:** `GET /log?limit=` = counts per decision / mode /
+platform / check verdict + score spreads + the recent rows; `GET /log/{session_id}` = the full trace of
+one session (every signal with its curves, reasons, a non-personal capture summary — images stripped);
+`GET /dashboard` = the analyst dashboard that reads both.
 `motion.verdict` ∈ `pass | review | fail | insufficient | absent`; `series` holds the
 lag-aligned curves for the analyst dashboard.
 `light.verdict` (check 5) ∈ `pass | review | fail | insufficient | skipped | absent`.

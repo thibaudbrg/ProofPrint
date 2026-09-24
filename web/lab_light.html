@@ -56,13 +56,8 @@
       </div>
 
       <div class="panel wide">
-        <h2>Sequence shown (top) vs colour the skin answered per slot (bottom, at the fitted lag) — d = median chroma shift (R,G,B)</h2>
-        <div id="strip"></div>
-      </div>
-
-      <div class="panel wide">
-        <h2>Chroma response · z − guard baseline per channel, background shaded with the colour on screen (dots = frames masked near a switch)</h2>
-        <div class="legend"><span><i style="background:var(--r)"></i>R</span><span><i style="background:var(--g)"></i>G</span><span><i style="background:var(--b)"></i>B</span><span>expected: the on-screen channel goes UP (+⅔·k), the two others DOWN (−⅓·k)</span></div>
+        <h2>Screen colour vs skin reflection</h2>
+        <div class="legend"><span><i style="background:var(--r)"></i>red channel</span><span><i style="background:var(--g)"></i>green</span><span><i style="background:var(--b)"></i>blue</span><span id="chZnote"></span></div>
         <div id="chZ"></div>
       </div>
 
@@ -86,6 +81,7 @@
   </div>
 </div>
 
+<script src="/web/charts.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 $("phoneUrl").textContent = location.origin.replace(/^http:\/\/(localhost|127\.0\.0\.1)/, "<tunnel>") + "/lab/light/phone";
@@ -94,8 +90,8 @@ const RGB = { grey:"#808080", black:"#000", red:"#f00", green:"#0f0", blue:"#00f
 const SHADE = { grey:"#F1F1F1", black:"#E6E6E6", red:"#FDE3E0", green:"#E1F5E7", blue:"#E3E8FC" };
 
 // ---- SVG line chart with optional background bands and point markers ----
-function chart(el, x, series, {h=200, ylines=[], xlabel="ms", marker=null, sym=false, bands=[], xband=null, dots=null} = {}){
-  const W = 900, H = h, L = 48, R = 10, T = 10, B = 26;
+function chart(el, x, series, {h=200, ylines=[], xlabel="ms", marker=null, sym=false, bands=[], xband=null, dots=null, ribbon=false, edges=[]} = {}){
+  const W = 900, H = h, L = 48, R = 10, T = ribbon ? 24 : 10, B = 26;
   const xmin = Math.min(...x), xmax = Math.max(...x);
   let ymin = Infinity, ymax = -Infinity;
   series.forEach(s => s.y.forEach(v => { if(v!=null && isFinite(v)){ ymin=Math.min(ymin,v); ymax=Math.max(ymax,v);} }));
@@ -105,50 +101,34 @@ function chart(el, x, series, {h=200, ylines=[], xlabel="ms", marker=null, sym=f
   const pad=(ymax-ymin)*0.06; ymin-=pad; ymax+=pad;
   const X = v => L + (v-xmin)/(xmax-xmin||1)*(W-L-R), Y = v => T + (ymax-v)/(ymax-ymin)*(H-T-B);
   let g = `<svg viewBox="0 0 ${W} ${H}">`;
-  bands.forEach(b => g += `<rect x="${X(b.x0)}" y="${T}" width="${Math.max(0,X(b.x1)-X(b.x0))}" height="${H-T-B}" fill="${b.color}"/>`);
+  bands.forEach(b => { const x0 = Math.max(X(b.x0), L), x1 = Math.min(X(b.x1), W-R); if(x1 <= x0) return;
+    g += `<rect x="${x0}" y="${T}" width="${x1-x0}" height="${H-T-B}" fill="${b.color}"/>`;
+    if(ribbon) g += `<rect x="${x0}" y="${6}" width="${x1-x0}" height="10" rx="2" fill="${b.solid||b.color}"/>`; });
+  edges.forEach(e => { const xe = X(e); if(xe > L && xe < W-R) g += `<line x1="${xe}" x2="${xe}" y1="${T}" y2="${H-B}" stroke="#fff" stroke-width="1.5"/>`; });
   if(xband) g += `<rect x="${X(xband[0])}" y="${T}" width="${Math.max(0,X(xband[1])-X(xband[0]))}" height="${H-T-B}" fill="#E1F5E7" opacity=".7"/>`;
-  for(let i=0;i<=4;i++){ const v = ymin+(ymax-ymin)*i/4; g += `<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="#E4E6E4"/><text x="${L-6}" y="${Y(v)+4}" text-anchor="end" font-size="10" fill="#5B616B">${v.toFixed(Math.abs(ymax-ymin)<5?3:0)}</text>`; }
-  if(ymin<0&&ymax>0) g += `<line x1="${L}" x2="${W-R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#B9BDB9"/>`;
+  for(let i=0;i<=4;i++){ const v = ymin+(ymax-ymin)*i/4; g += `<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="#E4E6E4"/><text x="${L-6}" y="${Y(v)+4}" text-anchor="end" font-size="10" fill="#5B616B">${v.toFixed(Math.abs(ymax-ymin)<5?2:0)}</text>`; }
+  if(ymin<0&&ymax>0) g += `<line x1="${L}" x2="${W-R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#8A8F8A" stroke-dasharray="4 3"/>`;
   for(let i=0;i<=6;i++){ const v = xmin+(xmax-xmin)*i/6; g += `<text x="${X(v)}" y="${H-8}" text-anchor="middle" font-size="10" fill="#5B616B">${v.toFixed(0)}${i===6?" "+xlabel:""}</text>`; }
   ylines.forEach(l => g += `<line x1="${L}" x2="${W-R}" y1="${Y(l.v)}" y2="${Y(l.v)}" stroke="${l.color||'#999'}" stroke-dasharray="5 4"/><text x="${W-R-2}" y="${Y(l.v)-3}" text-anchor="end" font-size="10" fill="${l.color||'#999'}">${l.label||''}</text>`);
   if(marker!=null) g += `<line x1="${X(marker)}" x2="${X(marker)}" y1="${T}" y2="${H-B}" stroke="#15191B" stroke-dasharray="3 3"/>`;
   series.forEach(s => { const pts = s.y.map((v,i)=> v==null||!isFinite(v)?null:`${X(x[i]).toFixed(1)},${Y(v).toFixed(1)}`).filter(Boolean).join(" ");
-    g += `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="${s.width||2}" ${s.dash?`stroke-dasharray="${s.dash}"`:""} stroke-linejoin="round"/>`;
-    if(dots) s.y.forEach((v,i) => { if(dots[i] && v!=null) g += `<circle cx="${X(x[i])}" cy="${Y(v)}" r="2.6" fill="#fff" stroke="${s.color}"/>`; }); });
+    g += `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="${s.width||2}" ${s.dash?`stroke-dasharray="${s.dash}"`:""} stroke-linejoin="round" stroke-linecap="round"/>`;
+    if(dots) s.y.forEach((v,i) => { if(dots[i] && v!=null) g += `<circle cx="${X(x[i])}" cy="${Y(v)}" r="2.2" fill="#fff" stroke="${s.color}" stroke-width="1.2"/>`; }); });
   el.innerHTML = g + "</svg>";
 }
 const kv = (el, obj) => el.innerHTML = Object.entries(obj).map(([k,v]) => `<div><span>${k}</span><span class="mono">${v==null?"—":v}</span></div>`).join("");
-
-function renderStrip(run){
-  const o = run.official || {}, ch = run.challenge || {slots:[],dur_ms:[]}, segs = o.per_segment || [];
-  const total = ch.dur_ms.reduce((a,b)=>a+b,0) || 1;
-  let top = "", bottom = "";
-  let x = 0;
-  ch.slots.forEach((s, i) => {
-    const w = ch.dur_ms[i] / total * 100;
-    top += `<div style="width:${w}%;background:${RGB[s]};height:30px;border-right:2px solid #fff;display:flex;align-items:flex-end;justify-content:center;color:${s==='grey'||s==='green'?'#000':'#fff'};font-size:11px">${ch.dur_ms[i]}</div>`;
-    const seg = segs.find(z => z.slot === i);
-    let inner = "", bg = "#F1F1F1";
-    if(seg){ if(seg.ok == null) inner = `<span style="color:#B26B0C">? n=${seg.n}</span>`;
-             else { bg = RGB[seg.pred]; inner = `<b style="color:${seg.pred==='green'?'#000':'#fff'}">${seg.ok?'✓':'✗'}</b><span class="mono" style="font-size:10px;color:${seg.pred==='green'?'#000':'#fff'}">${seg.d.map(v=>(v>=0?'+':'')+v.toFixed(3)).join(' ')}<br>n=${seg.n}</span>`; } }
-    bottom += `<div style="width:${w}%;background:${bg};height:44px;border-right:2px solid #fff;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.2">${inner}</div>`;
-    x += w;
-  });
-  $("strip").innerHTML = `<div style="display:flex">${top}</div><div style="display:flex;margin-top:4px">${bottom}</div>`;
-}
 
 function render(run){
   const o = run.official || {}, t = run.timing || {}, th = run.thresholds || {}, s = o.series;
   $("verdict").textContent = o.verdict || "—"; $("verdict").className = "verdict " + (o.verdict||"");
   kv($("headline"), { run:`#${run.id} · ${run.at}`, label:run.label, score:o.score, "ρ (mean per-channel Pearson)":o.rho, "acc (slots right)":o.acc==null?null:`${Math.round(o.acc*6)}/6`,
                        "p (permutation)":o.p, "SNR":o.snr, "lag (ms)":o.lag_ms, flags:(o.flags||[]).join(", ")||"none" });
-  renderStrip(run);
   if(!s){ ["chZ","chLag","chRaw"].forEach(id=>$(id).innerHTML=`<div class="empty">no curves — ${(o.flags||[]).join(", ")||"check failed early"}</div>`); kv($("numbers"),{}); kv($("timing"),{}); return; }
   const shift = o.lag_fit_ms || 0;
   const bands = s.edges_ms.slice(0,-1).map((e,i) => ({ x0:e+shift, x1:s.edges_ms[i+1]+shift, color:SHADE[s.slots[i]]||"#eee" }));
-  const M = [0,1,2].map(c => s.z.map((z,i) => z[c]-s.base[i][c]));
-  const masked = s.used.map(u => !u);
-  chart($("chZ"), s.t_ms, [{y:M[0],color:"var(--r)"},{y:M[1],color:"var(--g)"},{y:M[2],color:"var(--b)"}], {h:230, sym:true, bands, dots:masked, xlabel:"ms since first switch (bands shifted by fitted lag)"});
+  const right = (o.per_segment||[]).filter(x => x.ok).length, total = (o.per_segment||[]).length;
+  $("chZnote").textContent = `${right} of ${total} colours matched · match ρ ${o.rho} · camera lag ${shift} ms · ○ = frame at a switch, not scored`;
+  PPCharts.lightPanel($("chZ"), o);
   const lc = o.lag_curve || {lag_ms:[],rho:[]};
   chart($("chLag"), lc.lag_ms, [{y:lc.rho,color:"#15191B",width:2.5}], {h:200, ylines:[{v:0.8,label:"ρ 0.8 → full credit",color:"#1E7A47"},{v:0,label:"",color:"#bbb"}], marker:o.lag_fit_ms, xband:th.LAG_OK, xlabel:"ms lag (camera later than screen →)"});
   chart($("chRaw"), s.t_ms, [{y:s.z.map(z=>z[0]),color:"var(--r)"},{y:s.z.map(z=>z[1]),color:"var(--g)"},{y:s.z.map(z=>z[2]),color:"var(--b)"},
