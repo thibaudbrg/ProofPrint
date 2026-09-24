@@ -11,6 +11,15 @@
   *{box-sizing:border-box} [hidden]{display:none!important}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:'Hanken Grotesk',system-ui,sans-serif;font-size:14px;line-height:1.45}
   .wrap{max-width:1180px;margin:0 auto;padding:22px 24px 70px}
+  body.casting .wrap{max-width:1600px;display:grid;grid-template-columns:1fr 400px;gap:28px;align-items:start}
+  body.casting header{grid-column:1/-1}
+  .cast{font:inherit;font-weight:600;border:1px solid var(--line);background:#fff;border-radius:10px;padding:7px 14px;cursor:pointer}
+  .cast.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  /* the phone: a black rounded frame, sticky, keeps the iPhone aspect */
+  .phone{position:sticky;top:20px;background:#0c0c0d;border-radius:44px;padding:14px;box-shadow:0 20px 60px rgba(0,0,0,.25);aspect-ratio:9/19.5;display:flex;flex-direction:column;overflow:hidden}
+  .phone canvas{width:100%;height:100%;object-fit:contain;border-radius:32px;background:#000;display:block}
+  .phone .off{position:absolute;top:22px;right:22px;width:30px;height:30px;border-radius:50%;border:0;background:rgba(255,255,255,.18);color:#fff;font-size:15px;cursor:pointer}
+  .phone .msg{position:absolute;inset:0;display:grid;place-items:center;color:#9AA1AC;font-size:13px;text-align:center;padding:30px}
   header{display:flex;align-items:center;gap:22px;flex-wrap:wrap;margin-bottom:22px}
   h1{font-family:'Fraunces',serif;font-weight:600;font-size:24px;margin:0;letter-spacing:-.01em}
   h2{font-size:11.5px;margin:0 0 10px;color:var(--ink2);text-transform:uppercase;letter-spacing:.1em;font-weight:700}
@@ -69,6 +78,8 @@
   <header>
     <h1>Proofprint</h1>
     <div class="tabs"><button class="on" data-tab="summary">Summary</button><button data-tab="sessions">Sessions</button></div>
+    <span style="flex:1"></span>
+    <button class="cast" id="cast" title="Show the phone screen on the right (USB + QuickTime, or AirPlay to this Mac)">Cast phone</button>
   </header>
 
   <div id="empty" class="empty">No verifications yet.</div>
@@ -100,6 +111,13 @@
       <div class="cards" id="cards"></div>
     </div>
   </section>
+
+  <aside class="phone" id="phone" hidden>
+    <video id="phoneVideo" autoplay muted playsinline hidden></video>
+    <canvas id="phoneCanvas"></canvas>
+    <div class="msg" id="phoneMsg" hidden></div>
+    <button class="off" id="castStop" title="Stop">✕</button>
+  </aside>
 </div>
 
 <script src="/web/charts.js"></script>
@@ -233,6 +251,74 @@ async function poll(){
   } catch(_){}
 }
 poll(); setInterval(poll, 3000);
+
+// ---- Cast phone: show the iPhone screen in a frame on the right while screen-sharing this page.
+// The phone itself can't stream its screen to a browser; the Mac captures it instead:
+//   1. USB + QuickTime (File → New Movie Recording → camera: iPhone) or AirPlay → this Mac.
+//   2. Cast: first try the iPhone as a plain video device (Chrome lists a USB iPhone once QuickTime
+//      has opened it), else window capture — pick the QuickTime / AirPlay window.
+let castStream = null;
+async function startCast(){
+  $("phoneMsg").hidden = true;
+  try {
+    let stream = null;
+    try {
+      const probe = await navigator.mediaDevices.getUserMedia({ video: true });   // unlocks device labels
+      probe.getTracks().forEach(t => t.stop());
+      const cams = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput" && /iphone|ipad/i.test(d.label));
+      if(cams.length) stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: cams[0].deviceId }, width: { ideal: 1170 }, height: { ideal: 2532 } } });
+    } catch(_){}
+    if(!stream) stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: false, selfBrowserSurface: "exclude" });
+    castStream = stream;
+    $("phoneVideo").srcObject = stream;
+    stream.getVideoTracks()[0].addEventListener("ended", stopCast);
+    startCropLoop();
+    document.body.classList.add("casting"); $("phone").hidden = false; $("cast").classList.add("on"); $("cast").textContent = "Casting";
+  } catch(e){
+    document.body.classList.add("casting"); $("phone").hidden = false;
+    $("phoneMsg").hidden = false; $("phoneMsg").textContent = "No phone feed. Plug the iPhone in by USB and open it in QuickTime (New Movie Recording → camera: iPhone), or AirPlay it to this Mac, then Cast again and pick that window.";
+  }
+}
+// Auto-crop: the AirPlay / QuickTime window is a phone in the middle of a black surface. Every
+// ~0.7 s we find the bounding box of the non-black pixels on a 96 px thumbnail and draw only that
+// region into the frame (box kept when the phone itself goes black for a moment).
+let cropRaf = null, cropBox = null, cropT = 0;
+const _probe = document.createElement("canvas"), _pctx = _probe.getContext("2d", { willReadFrequently: true });
+function findPhoneBox(video){
+  const W = 96, H = Math.max(8, Math.round(video.videoHeight * W / video.videoWidth));
+  _probe.width = W; _probe.height = H; _pctx.drawImage(video, 0, 0, W, H);
+  const d = _pctx.getImageData(0, 0, W, H).data;
+  const col = new Uint8Array(W), row = new Uint8Array(H);
+  for(let y = 0; y < H; y++) for(let x = 0; x < W; x++){ const i = (y * W + x) * 4; if(d[i] + d[i+1] + d[i+2] > 60){ col[x] = 1; row[y] = 1; } }
+  let x0 = col.indexOf(1), x1 = col.lastIndexOf(1), y0 = row.indexOf(1), y1 = row.lastIndexOf(1);
+  if(x0 < 0 || x1 - x0 < 8 || y1 - y0 < 8) return null;
+  const sx = video.videoWidth / W, sy = video.videoHeight / H;
+  return { x: Math.max(0, (x0 - 0.5) * sx), y: Math.max(0, (y0 - 0.5) * sy), w: Math.min(video.videoWidth, (x1 - x0 + 2) * sx), h: Math.min(video.videoHeight, (y1 - y0 + 2) * sy) };
+}
+function startCropLoop(){
+  const v = $("phoneVideo"), c = $("phoneCanvas"), ctx = c.getContext("2d");
+  const draw = () => {
+    if(!castStream) return;
+    if(v.videoWidth){
+      const now = performance.now();
+      if(now - cropT > 700){ cropT = now; const b = findPhoneBox(v); if(b) cropBox = b; }
+      const b = cropBox || { x: 0, y: 0, w: v.videoWidth, h: v.videoHeight };
+      const cw = Math.round(Math.min(900, b.w)), ch = Math.round(cw * b.h / b.w);
+      if(c.width !== cw || c.height !== ch){ c.width = cw; c.height = ch; }
+      ctx.drawImage(v, b.x, b.y, b.w, b.h, 0, 0, cw, ch);
+    }
+    cropRaf = requestAnimationFrame(draw);
+  };
+  cancelAnimationFrame(cropRaf); draw();
+}
+function stopCast(){
+  cancelAnimationFrame(cropRaf); cropBox = null;
+  if(castStream) castStream.getTracks().forEach(t => t.stop()); castStream = null;
+  $("phoneVideo").srcObject = null; $("phone").hidden = true; document.body.classList.remove("casting");
+  $("cast").classList.remove("on"); $("cast").textContent = "Cast phone";
+}
+$("cast").onclick = () => castStream ? stopCast() : startCast();
+$("castStop").onclick = stopCast;
 </script>
 </body>
 </html>

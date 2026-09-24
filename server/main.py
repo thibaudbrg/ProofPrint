@@ -32,6 +32,19 @@ import neck_check
 import profile_check
 
 app = FastAPI(title="Proofprint")
+
+
+@app.middleware("http")
+async def no_store(request, call_next):
+    """Never cache anything: the phone loads the page through a Cloudflare quick tunnel, which
+    caches .js/.css at the edge by default, and Safari keeps stale pages — both bit us during
+    the hackathon (old light.js kept running the colours twice). Tiny files, no cost."""
+    resp = await call_next(request)
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
+
+
 app.include_router(lab.router)        # /lab — check-4 + check-5 debugging dashboards, isolated from the flow
 
 # In-memory session store. Fine for a hackathon; swap for SQLite later.

@@ -75,7 +75,14 @@
   .feed{position:absolute;inset:0;width:100%;height:100%;display:block}
   .guide{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
          box-shadow:0 0 0 2000px rgba(12,12,13,.55);pointer-events:none}
-  .guide.card{width:86%;aspect-ratio:1.585;border-radius:14px;border:2px dashed rgba(255,255,255,.95)}
+  .guide.card{width:86%;aspect-ratio:1.585;border-radius:14px;border:2px dashed rgba(255,255,255,.95);transition:border-color .15s}
+  /* auto-capture: the outline turns green when the card / face fits, glows twice, then the shot is taken */
+  .guide.card.fit{border-color:#4ADE80} .guide.card.fit .tick{border-color:#4ADE80}
+  .overlay.fit #selfieGuide{stroke:#4ADE80}
+  .guide.card.glow{animation:glowbox .32s ease-in-out 2}
+  .overlay.glow svg{animation:glowsvg .32s ease-in-out 2}
+  @keyframes glowbox{50%{box-shadow:0 0 0 2000px rgba(12,12,13,.55),0 0 22px 6px #4ADE80}}
+  @keyframes glowsvg{50%{filter:drop-shadow(0 0 10px #4ADE80) drop-shadow(0 0 4px #4ADE80)}}
   .tick{position:absolute;width:22px;height:22px;border:0 solid #fff}
   .card .tick.tl,.cardslot .tick.tl{top:-2px;left:-2px;border-top-width:3px;border-left-width:3px;border-top-left-radius:14px}
   .card .tick.tr,.cardslot .tick.tr{top:-2px;right:-2px;border-top-width:3px;border-right-width:3px;border-top-right-radius:14px}
@@ -140,7 +147,8 @@
   .arrow.left{--dx:-10px}.arrow.right{--dx:10px}
   @media(prefers-reduced-motion:reduce){.arrow{animation:none}}
   /* ID-beside-face slot: a card outline overlapping the silhouette's edge */
-  .guide.cardslot{width:46%;aspect-ratio:1.585;border-radius:10px;border:2px dashed rgba(255,255,255,.95);
+  .cardslot .lbl{position:absolute;inset:0;display:grid;place-items:center;color:rgba(255,255,255,.8);font-weight:700;font-size:12px;letter-spacing:.25em}
+  .guide.cardslot{width:32%;aspect-ratio:1.585;border-radius:10px;border:2px dashed rgba(255,255,255,.95);
                   box-shadow:none;left:auto;right:6%;top:50%;transform:translateY(-50%)}
   .guide.cardslot.onleft{right:auto;left:6%}
   .progress{position:absolute;left:14px;right:14px;bottom:52px;height:6px;border-radius:3px;background:rgba(255,255,255,.3);z-index:2;overflow:hidden}
@@ -224,7 +232,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M6 3h12v4l-3 3v11H9V10L6 7z"></path><path d="M12 13v3"></path></svg>
       </button>
-      <div class="hint" id="idHint">Line up your ID and tap the button</div>
+      <div class="hint" id="idHint">Fit your ID in the frame — it snaps by itself (or tap)</div>
     </div>
     <div id="idCapRow"><div class="shutter" id="idShutter" role="button" aria-label="Capture document"></div>
       <button class="btn-link" id="idSkipBack" hidden style="display:block;margin:6px auto 0">Skip — my document has no code lines (e.g. driving licence)</button></div>
@@ -270,10 +278,11 @@
       </div>
       <!-- no on-screen card guide: check 6 is simplified to score only the head turn,
            the ID-in-hand is a spoken/instruction-screen cue, not something we detect -->
+      <div class="guide cardslot" id="cardSlot" hidden><span class="tick tl"></span><span class="tick tr"></span><span class="tick bl"></span><span class="tick br"></span><span class="lbl">ID</span></div>
       <div class="arrow" id="profileArrow" hidden>➜</div>
       <div class="progress" id="liveProgress" hidden><i></i></div>
       <div class="toast" id="shotToast" hidden>✓ Photo taken</div>
-      <div class="hint" id="selfieHint">Center your face and tap the button</div>
+      <div class="hint" id="selfieHint">Fill the outline with your face — it snaps by itself (or tap)</div>
     </div>
     <div id="selfieCapRow"><div class="shutter" id="selfieShutter" role="button" aria-label="Take selfie"></div></div>
     <div id="selfieConfirm" class="btn-row" hidden>
@@ -385,8 +394,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/delaunator@5.0.1/delaunator.min.js"></script>
-<script type="module" src="/web/facemask.js"></script>
-<script src="/web/light.js"></script>
+<script type="module" src="/web/facemask.js?v=20260924c"></script>
+<script src="/web/light.js?v=20260924c"></script>
 <script>
 const $ = id => document.getElementById(id);
 const screens = ["intro","idScreen","selfieScreen","instructScreen","checking","resultScreen"];
@@ -504,7 +513,7 @@ function instruct(kind, side){
       "Hold the phone about <b>a hand-span (20–25 cm)</b> from your face, straight in front of you.",
       "<b>Look at the screen and keep still.</b> It will show a few colours for about 5 seconds.",
       "Tip: turn your <b>screen brightness up</b> and stay away from windows and direct sunlight."]
-    : [ `Hold your ID card in your <b>left hand</b>.`,
+    : [ `Hold your ID card in your <b>right hand</b>, inside the small dotted frame.`,
         `Take your time. When you're ready, <b>slowly</b> turn your head to the <b>${side.toUpperCase()}</b> until we only see your profile — the clock only starts when you start turning.`,
         "Keep going for about 3 seconds — an arrow will point the way."];
   $("insTitle").textContent = { move:"Now turn your phone", light:"Quick light check", profile:"Now hold your ID and turn" }[kind];
@@ -524,7 +533,10 @@ function instruct(kind, side){
   return new Promise(res => { $("insGo").onclick = () => res(true); skip.onclick = () => res(false); });
 }
 
-// ---- Check 5 (light pulse): mint just in time, flash, record; one retry on client-side jank ----
+// ---- Check 5 (light pulse): mint just in time, flash, record. ONE run; a second one only when the
+// sequence could not be shown at all (a colour never painted, wrong order, tab went to background).
+// Timing jitter / low fps are the server's business — it fits the lag — so a slow phone is never
+// made to sit through the colours twice.
 async function phaseLight(videoEl){
   const ui = { flash:$("lightFlash"), thumb:$("lightThumb"), hint:$("lightHint"), fill:$("lightBar").querySelector("i") };
   for (let attempt = 1; attempt <= 2; attempt++){
@@ -534,7 +546,8 @@ async function phaseLight(videoEl){
     ch._t_received = performance.now();
     const out = await LightPulse.run({ videoEl, stream, challenge: ch, ui, events: meta.events });
     lightFrames = out.frames; meta.light = out.light; meta.light.attempt = attempt;
-    if (out.light.client_checks.ok) return;
+    const cc = out.light.client_checks;
+    if (cc.all_painted && cc.order_ok && !cc.hidden) return;      // shown properly → done, whatever the timing
     ui.hint.textContent = "Let's try that once more";
     await new Promise(r => setTimeout(r, 600));
   }
@@ -601,7 +614,8 @@ async function phaseProfile(videoEl){
   const arrow = $("profileArrow"), SIDE = side.toUpperCase(), glyph = side === "left" ? "⟵" : "⟶";
   // The preview is mirrored, so the arrow points the way the user sees it.
   arrow.className = "arrow " + side; arrow.textContent = side === "left" ? "⬅" : "➡"; arrow.hidden = false;
-  hint.className = "hint big"; hint.innerHTML = `ID in your left hand · when you're ready, slowly turn <b>${SIDE}</b> ${glyph}`;
+  $("cardSlot").hidden = false;                         // small dotted card on the right: hold the ID there
+  hint.className = "hint big"; hint.innerHTML = `ID in your right hand · when you're ready, slowly turn <b>${SIDE}</b> ${glyph}`;
   bar.hidden = false; fill.style.width = "0%";
   meta.events.push({ name:"profile_start", t:performance.now() });
   recordingMotion = true;
@@ -631,7 +645,7 @@ async function phaseProfile(videoEl){
     });
   haptic("double");
   meta.events.push({ name:"profile_end", t:performance.now() });
-  recordingMotion = false; arrow.hidden = true; bar.hidden = true; hint.className = "hint";
+  recordingMotion = false; arrow.hidden = true; bar.hidden = true; $("cardSlot").hidden = true; hint.className = "hint";
   // Drop the waiting frames (keep a short frontal pre-roll before the turn started).
   const tCut = (tStart ?? t0) - B_PREROLL_MS;
   const keep = new Set(meta.profile.frames.filter(f => f.t >= tCut).map(f => f.file));
@@ -647,7 +661,7 @@ async function injectedStream(){
   if (!window.FaceMask) throw new Error("face mask module not loaded");
   return await window.FaceMask.start();
 }
-async function stopStream(){ stopInject(); if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } torchOn=false; $("idTorch").hidden=true; }
+async function stopStream(){ stopInject(); stopAutoCapture(); if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } torchOn=false; $("idTorch").hidden=true; }
 async function startCamera(videoEl, facing, collectMeta){
   await stopStream();
   stream = (injectOn() && facing === "user") ? await injectedStream() : await navigator.mediaDevices.getUserMedia({
@@ -686,8 +700,8 @@ function blurHint(el, sharp){
   if (sharp < BLUR_THRESH){ el.className="hint warn"; el.textContent=`Looks blurry (sharpness ${sharp.toFixed(0)}) — hold still and retake`; }
   else { el.className="hint"; el.textContent=`Sharp (${sharp.toFixed(0)}) — looks good`; }
 }
-const HINT_ID="Line up your ID and tap the button", HINT_ID_BACK="Line up the back — the «<<<» lines — and tap",
-      HINT_SELFIE="Center your face and tap the button";
+const HINT_ID="Fit your ID in the frame — it snaps by itself (or tap)", HINT_ID_BACK="Fit the back — the «<<<» lines — it snaps by itself (or tap)",
+      HINT_SELFIE="Fill the outline with your face — it snaps by itself (or tap)";
 // Flashlight for the document shots: shown only when the rear camera reports a torch
 // (Android Chrome; iOS Safari 17+ on the back camera). Off again whenever the stream stops.
 let torchOn = false;
@@ -705,7 +719,83 @@ async function setTorch(on){
 function showTorchBtn(){ torchOn = false; $("idTorch").setAttribute("aria-pressed", "false"); $("idTorch").hidden = !torchAvailable(); }
 $("idTorch").onclick = () => setTorch(!torchOn);
 
+// ---- Auto-capture: watch the live feed; when the card / face fits the outline for ~0.4 s the
+// outline turns green, glows twice and the shutter fires by itself. Manual tap always works too.
+// Both tests are cheap pixel heuristics on a ~200 px copy of the feed canvas (no ML in the browser):
+//   card  = strong edges lying along all four sides of the dashed rectangle (+ the image is sharp)
+//   face  = skin-coloured pixels fill the head part of the silhouette and are absent just outside it
+const AUTO_EVERY_MS = 140, AUTO_HITS = 3, EDGE_T = 28;
+let autoTimer = null, autoLocking = false;
+const _small = document.createElement("canvas"), _sctx = _small.getContext("2d", { willReadFrequently: true });
+
+function cardFits(feed, guideEl){
+  const g = feed._geo; if(!g) return false;
+  const cr = feed.getBoundingClientRect(), gr = guideEl.getBoundingClientRect();
+  const gx=(gr.left-cr.left)*g.dpr, gy=(gr.top-cr.top)*g.dpr, gw=gr.width*g.dpr, gh=gr.height*g.dpr;
+  const pad = 0.12, sx=gx-gw*pad, sy=gy-gh*pad, sw=gw*(1+2*pad), sh=gh*(1+2*pad);
+  const W = 200, H = Math.max(20, Math.round(sh*W/sw));
+  _small.width = W; _small.height = H;
+  _sctx.drawImage(feed, sx, sy, sw, sh, 0, 0, W, H);
+  const d = _sctx.getImageData(0, 0, W, H).data, gr8 = new Float32Array(W*H);
+  for(let i=0,j=0;i<d.length;i+=4,j++) gr8[j] = 0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
+  const gm = (x,y) => { if(x<1||y<1||x>=W-1||y>=H-1) return 0; const k=y*W+x; return Math.abs(gr8[k+1]-gr8[k-1]) + Math.abs(gr8[k+W]-gr8[k-W]); };
+  const x0 = Math.round(pad/(1+2*pad)*W), x1 = W-x0, y0 = Math.round(pad/(1+2*pad)*H), y1 = H-y0, band = Math.max(3, Math.round(0.05*W));
+  const cover = (horizontal, pos, a, b) => { let n=0, hit=0;
+    for(let t=a+4; t<b-4; t+=2){ let m=0; for(let o=-band;o<=band;o++){ const v = horizontal ? gm(t,pos+o) : gm(pos+o,t); if(v>m) m=v; } n++; if(m>EDGE_T) hit++; }
+    return n ? hit/n : 0; };
+  const c = [cover(true,y0,x0,x1), cover(true,y1,x0,x1), cover(false,x0,y0,y1), cover(false,x1,y0,y1)];
+  const mean = (c[0]+c[1]+c[2]+c[3])/4;
+  return Math.min(...c) >= 0.5 && mean >= 0.65 && sharpness(_small) >= BLUR_THRESH;
+}
+
+function faceFits(feed){
+  const W = feed.width, H = feed.height; if(!W || !H) return false;
+  // the silhouette SVG is 300x400, "slice"-fitted over the viewport: head circle centre (150,118), r 80
+  const s = Math.max(W/300, H/400), ox=(W-300*s)/2, oy=(H-400*s)/2, cx=ox+150*s, cy=oy+118*s, r=80*s;
+  const N = 96, R = N/3.2;                       // sample a 3.2r square around the head at 96 px
+  _small.width = N; _small.height = N;
+  _sctx.drawImage(feed, cx-1.6*r, cy-1.6*r, 3.2*r, 3.2*r, 0, 0, N, N);
+  const d = _sctx.getImageData(0, 0, N, N).data;
+  let inN=0, inS=0, outN=0, outS=0;
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    const i=(y*N+x)*4, Rv=d[i], G=d[i+1], B=d[i+2];
+    const Y=0.299*Rv+0.587*G+0.114*B, Cb=128-0.1687*Rv-0.3313*G+0.5*B, Cr=128+0.5*Rv-0.4187*G-0.0813*B;
+    const skin = Y>40 && Cb>=80 && Cb<=125 && Cr>=135 && Cr<=175;
+    const dx=(x-N/2)/R, dy=(y-N/2)/R, dist=Math.hypot(dx,dy);
+    if(dist<=0.8){ inN++; if(skin) inS++; }
+    else if(dist>=1.15 && dist<=1.5 && dy<0.5){ outN++; if(skin) outS++; }   // ring above the shoulders
+  }
+  return inN>0 && outN>0 && inS/inN >= 0.45 && outS/outN <= 0.22;
+}
+
+function setFit(kind, cls){
+  const el = kind === "id" ? $("idGuide") : $("selfieOverlay");
+  el.classList.toggle("fit", cls !== ""); el.classList.toggle("glow", cls === "glow");
+}
+function stopAutoCapture(){ clearInterval(autoTimer); autoTimer = null; autoLocking = false; setFit("id",""); setFit("selfie",""); }
+function startAutoCapture(kind){
+  stopAutoCapture();
+  let hits = 0;
+  autoTimer = setInterval(() => {
+    if(autoLocking) return;
+    const feed = kind === "id" ? $("idFeed") : $("selfieFeed");
+    const capRow = kind === "id" ? $("idCapRow") : $("selfieCapRow");
+    if(feed.hidden || capRow.hidden || !feed._geo || recordingMotion) return;
+    let ok = false;
+    try { ok = kind === "id" ? cardFits(feed, $("idGuide")) : faceFits(feed); } catch(_){ ok = false; }
+    hits = ok ? hits + 1 : 0;
+    setFit(kind, ok ? "fit" : "");
+    if(hits >= AUTO_HITS){
+      autoLocking = true; setFit(kind, "glow"); haptic("tick");
+      const hint = kind === "id" ? $("idHint") : $("selfieHint");
+      hint.textContent = "Hold still…";
+      setTimeout(() => { if(!autoTimer) return; stopAutoCapture(); (kind === "id" ? $("idShutter") : $("selfieShutter")).click(); }, 700);
+    }
+  }, AUTO_EVERY_MS);
+}
+
 function resetIdCapture(){
+  idBusy = false;
   $("idShot").hidden=true; $("idGuide").hidden=false; $("idFeed").hidden=false;
   startFeed($("idVideo"), $("idFeed"), false);
   $("idHint").hidden=false; $("idHint").className="hint";
@@ -713,6 +803,7 @@ function resetIdCapture(){
   $("idConfirm").hidden=true; $("idCapRow").hidden=false;
   $("idSkipBack").hidden = idSide!=="back";
   showTorchBtn();
+  startAutoCapture("id");
 }
 function setIdSide(side){
   idSide = side;
@@ -721,7 +812,7 @@ function setIdSide(side){
 }
 async function goSelfie(){
   show("selfieScreen");
-  try { await startCamera($("selfieVideo"), "user", true); startFeed($("selfieVideo"), $("selfieFeed"), true); }
+  try { await startCamera($("selfieVideo"), "user", true); startFeed($("selfieVideo"), $("selfieFeed"), true); startAutoCapture("selfie"); }
   catch(e){ $("selfieHint").textContent = "Camera error: " + e.message; }
 }
 // Tap the live view to (re)focus there. Android accepts a point of interest; iOS shows the ring only.
@@ -801,15 +892,18 @@ $("begin").onclick = async () => {
   const parts = ["Selfie"]; if (lightOn()) parts.push("light check"); if (motionOn()) parts.push("phone move"); if (killerOn()) parts.push("ID turn");
   $("selfieTitle").textContent = parts.join(", ").replace(/, ([^,]*)$/, " & $1");
   $("selfieCopy").innerHTML = naiveOn() ? "Put your face inside the outline and tap. <b>Naïve mode:</b> no liveness checks."
-    : "Put your face inside the outline and tap." + (lightOn() ? " Then <b>look at the screen</b> while it shows a few colours." : "") + (motionOn() ? " Then <b>move the phone</b> to follow the outline." : "") + (killerOn() ? " Then hold your ID in your left hand and turn." : "");
+    : "Put your face inside the outline and tap." + (lightOn() ? " Then <b>look at the screen</b> while it shows a few colours." : "") + (motionOn() ? " Then <b>move the phone</b> to follow the outline." : "") + (killerOn() ? " Then hold your ID in your right hand and turn." : "");
   show("idScreen");
-  try { await startCamera($("idVideo"), {ideal:"environment"}, false); startFeed($("idVideo"), $("idFeed"), false); showTorchBtn(); }
+  try { await startCamera($("idVideo"), {ideal:"environment"}, false); startFeed($("idVideo"), $("idFeed"), false); showTorchBtn(); startAutoCapture("id"); }
   catch(e){ $("idHint").textContent = "Camera error: " + e.message; }
 };
 
 // ---- ID CAPTURE ----
+let idBusy = false, selfieBusy = false;               // a shutter fires once, even if auto-snap and a tap coincide
 $("idShutter").onclick = async () => {
-  const out = await cropToGuide($("idVideo"), $("idFeed"), $("idGuide")); if(!out) return; const {blob,url,sharp}=out; stopFeed();
+  if (idBusy || $("idCapRow").hidden) return; idBusy = true;
+  stopAutoCapture();
+  const out = await cropToGuide($("idVideo"), $("idFeed"), $("idGuide")); if(!out){ idBusy = false; return; } const {blob,url,sharp}=out; stopFeed();
   if (idSide==="front"){ idBlob = blob; idFrontUrl = url; } else { idBackBlob = blob; }
   $("idShot").src = url; $("idShot").hidden=false; $("idGuide").hidden=true; $("idSkipBack").hidden=true; $("idTorch").hidden=true;
   $("idFeed").hidden=true; blurHint($("idHint"), sharp);
@@ -830,8 +924,9 @@ $("idSkipBack").onclick = () => { idBackBlob = null; goSelfie(); };
 
 // ---- SELFIE: still photo first (Retake / Continue), THEN the live phases ----
 $("selfieShutter").onclick = async () => {
-  if(recordingMotion || $("selfieCapRow").hidden) return;
-  const out = await cropToGuide($("selfieVideo"), $("selfieFeed"), $("selfieGuide"), 900); if(!out) return;
+  if(selfieBusy || recordingMotion || $("selfieCapRow").hidden) return; selfieBusy = true;
+  stopAutoCapture();
+  const out = await cropToGuide($("selfieVideo"), $("selfieFeed"), $("selfieGuide"), 900); if(!out){ selfieBusy = false; return; }
   selfieBlob = out.blob; $("selfieShot").src = out.url;
   stopFeed();                                          // the stream stays open for the live phases
   $("selfieCapRow").hidden = true; $("selfieHint").hidden = true;
@@ -843,9 +938,9 @@ function resumeSelfieFeed(){
   startFeed($("selfieVideo"), $("selfieFeed"), true);
 }
 $("selfieRetake").onclick = () => {                  // (confirm row is no longer shown; kept for safety)
-  selfieBlob = null; resumeSelfieFeed();
+  selfieBlob = null; selfieBusy = false; resumeSelfieFeed();
   $("selfieHint").className = "hint"; $("selfieHint").textContent = HINT_SELFIE; $("selfieHint").hidden = false;
-  $("selfieConfirm").hidden = true; $("selfieCapRow").hidden = false;
+  $("selfieConfirm").hidden = true; $("selfieCapRow").hidden = false; startAutoCapture("selfie");
 };
 $("selfieUse").onclick = () => runLivePhases();
 async function runLivePhases(){
@@ -941,13 +1036,13 @@ function render(res){
   show("resultScreen");
 }
 $("restart").onclick = () => {
-  idBlob=idBackBlob=selfieBlob=null; idFrontUrl=null; session=null;
+  idBlob=idBackBlob=selfieBlob=null; idFrontUrl=null; session=null; idBusy=selfieBusy=false;
   meta.frameIntervals=[]; meta.hasMotion=false; meta.frames=[]; meta.motion=[]; meta.events=[];
   meta.profile={enabled:false, side:null, frames:[]}; delete meta.light; delete meta.skipped; burstFrames=[]; profileFrames=[]; lightFrames=[];
   $("lightFlash").hidden=true; document.documentElement.style.background="";
   stopStream();
   setIdSide("front"); resetIdCapture(); $("docBox").hidden=true;
-  ["phoneGlyph","profileArrow","liveProgress","shotToast","selfiePreview"].forEach(id=>$(id).hidden=true);
+  ["phoneGlyph","profileArrow","cardSlot","liveProgress","shotToast","selfiePreview"].forEach(id=>$(id).hidden=true);
   $("selfieOverlay").hidden=false; $("selfieFeed").hidden=false;
   $("selfieHint").className="hint"; $("selfieHint").textContent=HINT_SELFIE; $("selfieHint").hidden=false;
   $("selfieConfirm").hidden=true; $("selfieCapRow").hidden=false;

@@ -107,9 +107,13 @@ window.LightPulse = (() => {
       const n = L.frames.filter(f => f.t >= s.t_painted + 150 && f.t <= next.t_painted + 50).length;
       min_frames_per_seg = Math.min(min_frames_per_seg, n);
     });
-    const ok = all_painted && order_ok && !L.hidden && max_switch_err_ms <= 40 && max_dur_err_ms <= 60 && min_frames_per_seg >= 2;
+    // `ok` = the run is usable at all (every colour was shown, in order, tab visible, ≥ 2 frames per
+    // slot). Timing precision is the SERVER's call (it fits the lag and flags jitter) — a slow phone
+    // must not be sent round the loop again for it.
+    const ok = all_painted && order_ok && !L.hidden && min_frames_per_seg >= 2;
     return { all_painted, order_ok, hidden: L.hidden, max_switch_err_ms: +max_switch_err_ms.toFixed(1),
-             max_dur_err_ms: +max_dur_err_ms.toFixed(1), min_frames_per_seg, n_frames: L.frames.length, ok };
+             max_dur_err_ms: +max_dur_err_ms.toFixed(1), min_frames_per_seg, n_frames: L.frames.length, ok,
+             usable: ok, timing_ok: max_switch_err_ms <= 40 && max_dur_err_ms <= 60 };
   }
 
   // Android bonus: freeze exposure / white balance for the flash. iOS exposes nothing → "none".

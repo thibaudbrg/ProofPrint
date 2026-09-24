@@ -178,9 +178,42 @@ needs `brew install tesseract` separately either way.
 - Own endpoints (`GET /lab/light/latest|{id}`, `DELETE /lab/light`), in-memory, last 40 runs.
 
 **Recent changes**
+- **Stale pages on the phone → `Cache-Control: no-store` on every response** (middleware in
+  `main.py`) + versioned script URLs (`/web/light.js?v=…`, `facemask.js?v=…`). Cloudflare quick
+  tunnels cache `.js` at the edge by default and Safari keeps old pages; the phone kept running an
+  old `light.js` / index (colours twice, no card frame) after fixes had landed. **Gotcha: after a
+  web change, close the tab on the phone and reopen the URL once** — now the headers do the rest.
+- **Shutter re-entrancy guards** (`idBusy` / `selfieBusy`): auto-snap and a finger tap at the same
+  instant could start the selfie flow twice (all live phases twice). One fire per capture now.
+- **Profile phase shows a small dotted "ID" card frame on the right** of the live view (`#cardSlot`,
+  32 % wide, back in the markup; the v3 server still ignores the card). The preview is mirrored, so
+  the right of the screen = the user's RIGHT hand → copy changed to "ID in your right hand" everywhere.
+- **Light phase no longer runs twice.** The client-side retry fired on timing (switch error > 40 ms,
+  duration error > 60 ms) — on a slow run (sessions 20:48/20:49: ~9 fps, 45 frames, 86–99 ms jank,
+  probably the face mask eating the main thread) every run "failed" client-side and the user saw the
+  colours twice. Now a second run happens ONLY if a colour was never painted, the order broke or the
+  tab went to background; timing is the server's job (`lag_fit`, `slot_timing_jitter`).
+  `client_checks.ok` = usable; `timing_ok` kept as a diagnostic.
 - **`research/light_method_summary.md`** — plain-language summary of *why* check 5 works the way it does
   (from `research/light_algorithm.md`): screen as light source, face-minus-background chroma, RGB + grey
   guards, server-minted JIT sequence, permutation test, never-pass-when-unsure, what it does / doesn't catch.
+- **Dashboard "Cast phone" (demo screen-share setup):** button in the dashboard header shows the
+  iPhone screen live in a phone frame on the right (page becomes two columns, frame is sticky). The
+  phone cannot stream its screen to a browser (iOS Safari has no `getDisplayMedia`) and Apple's
+  *iPhone Mirroring* app locks the phone + blocks the camera, so: **USB + QuickTime** (File → New Movie
+  Recording → camera: iPhone) or **AirPlay to the Mac**; Cast first tries the iPhone as a video
+  device (`enumerateDevices` label /iphone/), else window capture (`getDisplayMedia`) → pick the
+  QuickTime/AirPlay window. Then screen-share the ONE browser window. Chrome on the Mac needed.
+- **Auto-capture for the ID and the selfie (manual tap still works):** a 7 Hz watcher samples the
+  live feed canvas. **Card**: on a 200 px copy of the guide area, gradient "edge coverage" along the
+  four sides of the dashed rectangle (±5 % band, threshold 28) must be ≥ 0.5 on every side and
+  ≥ 0.65 on average, plus sharpness ≥ `BLUR_THRESH`. **Face**: on a 96 px copy around the silhouette's
+  head circle (SVG 300×400 slice-fit → centre (150,118), r 80), YCbCr skin pixels must be ≥ 45 % inside
+  0.8 r and ≤ 22 % in the 1.15–1.5 r ring above the shoulders (face fills the outline, nothing outside).
+  3 consecutive hits (~0.4 s) → outline turns green, glows twice, haptic tick, "Hold still…", shutter
+  fires after 0.7 s. Pure pixel heuristics (no ML in the browser) — thresholds set by reasoning, **not
+  yet tested on a phone**; if it never triggers, tap; if it triggers too eagerly raise `EDGE_T` /
+  the skin fractions in `cardFits()` / `faceFits()`.
 - **Vehicle warning + Skip on the phone-move instruction page:** "Make sure you are standing or
   sitting still — not in a moving car, train or tram… If you are travelling, skip this step." Skip
   sends `meta.skipped.motion=true` (no burst) → server `motion.verdict="skipped"` (enabled, reason
@@ -464,7 +497,8 @@ web/                  ← Person B
   dashboard.html      ← analyst dashboard (/dashboard): aggregates + per-session trace
   charts.js           ← shared SVG charts (light panel, motion curves, profile yaw, gauge)
   lab.html, lab_phone.html, lab_light.html, lab_light_phone.html  ← the two labs
-research/             ← check-5 research notes (algorithm + phone capture), 24 Sep
+research/             ← methods.md = SHORT explainer of every check (math, libraries, thresholds,
+                        fusion rule) for the jury; light_*.md = check-5 deep dives, 24 Sep
 swisscom-research/    ← the research (READ THESE for methods/papers):
   CHECKS_INDEX.md     ← per-check: papers, models, thresholds, day-1 tests
   defence_science.md  ← papers, standards, patents, evaluation plan
