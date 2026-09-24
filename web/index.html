@@ -118,8 +118,14 @@
   #lightBar{position:absolute;left:24px;right:24px;bottom:calc(env(safe-area-inset-bottom) + 26px);height:6px;border-radius:3px;
             background:rgba(0,0,0,.25);overflow:hidden}
   #lightBar i{display:block;height:100%;width:0;background:#fff}
+  /* check 6: arm + hand + ID card drawn into the selfie outline (left hand = screen left, the preview is mirrored) */
+  .overlay .id-only{display:none}
+  .overlay.with-id .id-only{display:inline}
+  .id-pose{fill:none;stroke:#fff;stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+  .id-pose .card-face{fill:rgba(255,255,255,.14)}
+  .id-pose .soft{opacity:.6}
   /* profile-turn arrow overlay (check 6) */
-  .arrow{position:absolute;top:50%;transform:translateY(-50%);font-size:64px;line-height:1;color:#fff;
+  .arrow{position:absolute;top:36%;transform:translateY(-50%);font-size:64px;line-height:1;color:#fff;
          text-shadow:0 2px 10px rgba(0,0,0,.7);animation:nudge 1s ease-in-out infinite;z-index:2;pointer-events:none}
   .arrow.left{left:10px}.arrow.right{right:10px}
   @keyframes nudge{50%{transform:translateY(-50%) translateX(var(--dx,0))}}
@@ -241,10 +247,28 @@
       <img id="selfiePreview" hidden alt="">
       <div class="overlay" id="selfieOverlay">
         <svg viewBox="0 0 300 400" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-          <defs><mask id="bustMask"><rect width="300" height="400" fill="#fff"></rect>
-            <path id="bustMaskPath" d="M118 208 C80 190 68 150 70 118 C72 74 108 38 150 38 C192 38 228 74 230 118 C232 150 220 190 182 208 L182 248 C216 258 256 278 274 318 C282 340 286 366 286 392 L14 392 C14 366 18 340 26 318 C44 278 84 258 118 248 L118 208 Z" fill="#000"></path></mask></defs>
+          <defs>
+            <path id="idArm" d="M28 400 C32 364 36 330 40 302 C35 286 35 264 43 252 C49 243 60 240 72 241 L89 243 C97 244 101 250 100 258 C99 273 95 289 89 302 C87 332 89 366 93 400 Z"></path>
+            <rect id="idCard" x="40" y="190" width="88" height="55" rx="7" transform="rotate(-9 84 217)"></rect>
+            <mask id="bustMask"><rect width="300" height="400" fill="#fff"></rect>
+            <path id="bustMaskPath" d="M118 208 C80 190 68 150 70 118 C72 74 108 38 150 38 C192 38 228 74 230 118 C232 150 220 190 182 208 L182 248 C216 258 256 278 274 318 C282 340 286 366 286 392 L14 392 C14 366 18 340 26 318 C44 278 84 258 118 248 L118 208 Z" fill="#000"></path>
+            <use class="id-only" href="#idArm" fill="#000"></use><use class="id-only" href="#idCard" fill="#000"></use></mask>
+            <!-- hides the body line under the arm/card; set on #selfieGuide only during check 6 (after the still is cropped) -->
+            <mask id="idGuideCut"><rect width="300" height="400" fill="#fff"></rect>
+            <use class="id-only" href="#idArm" fill="#000" stroke="#000" stroke-width="8"></use><use class="id-only" href="#idCard" fill="#000" stroke="#000" stroke-width="8"></use></mask>
+            <mask id="idCardCut"><rect width="300" height="400" fill="#fff"></rect><use href="#idArm" fill="#000" stroke="#000" stroke-width="7"></use></mask>
+          </defs>
           <rect width="300" height="400" fill="rgba(12,12,13,.55)" mask="url(#bustMask)"></rect>
           <path id="selfieGuide" d="M118 208 C80 190 68 150 70 118 C72 74 108 38 150 38 C192 38 228 74 230 118 C232 150 220 190 182 208 L182 248 C216 258 256 278 274 318 C282 340 286 366 286 392 L14 392 C14 366 18 340 26 318 C44 278 84 258 118 248 L118 208 Z" fill="none" stroke="#fff" stroke-width="2.5" stroke-dasharray="7 6" stroke-linejoin="round"></path>
+          <g class="id-only id-pose">
+            <g mask="url(#idCardCut)"><g transform="rotate(-9 84 217)">
+              <rect class="card-face" x="40" y="190" width="88" height="55" rx="7"></rect>
+              <rect x="48" y="199" width="23" height="29" rx="3"></rect>
+              <path class="soft" d="M79 204h40M79 214h32M79 224h36"></path>
+            </g></g>
+            <use href="#idArm" stroke-dasharray="7 6"></use>
+            <path class="soft" d="M46 262 C60 259 80 259 97 262 M45 276 C58 273 78 273 95 276 M46 290 C58 288 76 288 92 290"></path>
+          </g>
         </svg>
       </div>
       <!-- turning phone, centred, shown during the phone-move phase -->
@@ -297,12 +321,16 @@
         </div></div>
       <div class="ins-art" id="insArtProfile" hidden>
         <svg viewBox="0 0 220 200" aria-hidden="true" style="width:100%;height:auto;display:block">
-          <circle cx="118" cy="90" r="46" fill="none" stroke="#fff" stroke-width="5"></circle>
-          <path d="M96 84a6 6 0 1 0 0 .1M140 84a6 6 0 1 0 0 .1" fill="#fff"></path>
-          <rect x="132" y="56" width="62" height="40" rx="6" fill="rgba(255,255,255,.9)"></rect>
-          <rect x="138" y="64" width="16" height="20" rx="2" fill="#0c0c0d"></rect>
-          <rect x="158" y="66" width="28" height="4" rx="2" fill="#0c0c0d"></rect><rect x="158" y="76" width="22" height="4" rx="2" fill="#0c0c0d"></rect>
-          <path id="insArrow" d="M64 160 H14 M28 146 L14 160 L28 174" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"></path>
+          <path d="M76 200 C80 164 102 150 130 150 C158 150 180 164 184 200" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".5"></path>
+          <circle cx="130" cy="98" r="40" fill="none" stroke="#fff" stroke-width="5"></circle>
+          <path d="M116 94a5 5 0 1 0 0 .1M144 94a5 5 0 1 0 0 .1" fill="#fff"></path>
+          <g transform="rotate(-9 62 128)">
+            <rect x="28" y="106" width="68" height="43" rx="6" fill="rgba(255,255,255,.9)"></rect>
+            <rect x="35" y="113" width="17" height="22" rx="2" fill="#0c0c0d"></rect>
+            <rect x="57" y="116" width="32" height="4" rx="2" fill="#0c0c0d"></rect><rect x="57" y="126" width="24" height="4" rx="2" fill="#0c0c0d"></rect>
+          </g>
+          <path d="M34 200 C36 186 38 176 40 168 C36 160 36 150 42 144 C48 139 64 139 74 141 C80 142 82 147 81 152 C80 160 76 168 72 172 C71 182 72 192 74 200 Z" fill="#0c0c0d" stroke="#fff" stroke-width="5" stroke-linejoin="round"></path>
+          <path id="insArrow" d="M104 30 H44 M58 16 L44 30 L58 44" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"></path>
         </svg>
       </div>
       <div class="ins-art" id="insArtLight" hidden>
@@ -497,6 +525,7 @@ async function phaseProfile(videoEl){
   const side = (session && session.profile_side) || "left";
   meta.profile.enabled = true; meta.profile.side = side;
   const arrow = $("profileArrow");
+  setIdPose(true);
   // The preview is mirrored, so the arrow points the way the user sees it.
   arrow.className = "arrow " + side; arrow.textContent = side === "left" ? "⬅" : "➡"; arrow.hidden = false;
   hint.className = "hint big"; hint.textContent = `ID in your left hand · turn ${side.toUpperCase()}`;
@@ -510,6 +539,13 @@ async function phaseProfile(videoEl){
              hint.textContent = `Turn ${side.toUpperCase()} all the way… ${Math.ceil((B_MS-(now-tB))/1000)}`; });
   meta.events.push({ name:"profile_end", t:performance.now() });
   recordingMotion = false; arrow.hidden = true; bar.hidden = true; hint.className = "hint";
+  setIdPose(false);
+}
+// Arm + hand + ID in the outline. Only ever on AFTER the still selfie is cropped: a card in the
+// still could hand the face matcher the ID portrait instead of the live face.
+function setIdPose(on){
+  $("selfieOverlay").classList.toggle("with-id", on);
+  if (on) $("selfieGuide").setAttribute("mask", "url(#idGuideCut)"); else $("selfieGuide").removeAttribute("mask");
 }
 
 // ---- camera plumbing ----
@@ -795,7 +831,7 @@ $("restart").onclick = () => {
   $("lightFlash").hidden=true; document.documentElement.style.background="";
   setIdSide("front"); resetIdCapture(); $("docBox").hidden=true;
   ["phoneGlyph","profileArrow","liveProgress","shotToast","selfiePreview"].forEach(id=>$(id).hidden=true);
-  $("selfieOverlay").hidden=false; $("selfieFeed").hidden=false;
+  setIdPose(false); $("selfieOverlay").hidden=false; $("selfieFeed").hidden=false;
   $("selfieHint").className="hint"; $("selfieHint").textContent=HINT_SELFIE; $("selfieHint").hidden=false;
   $("selfieConfirm").hidden=true; $("selfieCapRow").hidden=false;
   show("intro");
