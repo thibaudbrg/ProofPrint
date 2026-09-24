@@ -145,6 +145,17 @@ needs `brew install tesseract` separately either way.
 - Own endpoints (`GET /lab/light/latest|{id}`, `DELETE /lab/light`), in-memory, last 40 runs.
 
 **Recent changes**
+- **ID-in-hand pose in the selfie outline** (branch `b/style`, `web/index.html` only; original
+  cream/terracotta style kept — a dark "Midnight trust" restyle was tried and reverted):
+  during the check-6 live phase ONLY, the selfie outline
+  grows an arm + fist holding an ID card on the screen-left (= the user's LEFT hand, preview is mirrored);
+  `setIdPose(on)` toggles `.with-id` on `#selfieOverlay` + a mask on `#selfieGuide` so the body line
+  hides under the arm. Instruction art for that step redrawn (head + ID in hand + turn arrow; was the
+  old "card over one eye"). Turn arrow moved up (`top:36%`) to clear the card.
+  ⚠ Deliberately NOT on the still selfie: `face_match._best_face` picks the highest DETECTION score,
+  so an ID portrait in the still could be matched instead of the live face (ID vs itself = pass).
+  Related server risk (Person A): `profile_check` frames now contain the ID portrait too — check it
+  tracks the live face, not the card's.
 - **Merge reconciliation (2026-09-24 night):** `feat/simplify-killer-feature` (check 6 v3,
   passporteye fix, `demo.sh`) merged with `main`'s check-5 work, which had landed in parallel
   and diverged from BEFORE the v3 simplification. Concretely: my earlier "get ready" prep
