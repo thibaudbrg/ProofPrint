@@ -102,6 +102,16 @@
   @keyframes nudge{50%{transform:translateY(-50%) translateX(var(--dx,0))}}
   .arrow.left{--dx:-10px}.arrow.right{--dx:10px}
   @media(prefers-reduced-motion:reduce){.arrow{animation:none}}
+  /* ID-beside-face slot: a card outline overlapping the circle's edge */
+  .guide.cardslot{width:46%;aspect-ratio:1.585;border-radius:10px;border:2px dashed rgba(255,255,255,.95);
+                  box-shadow:none;left:auto;right:6%;top:50%;transform:translateY(-50%)}
+  .guide.cardslot.onleft{right:auto;left:6%}
+  .phone-tilt{position:absolute;left:50%;top:14%;transform:translateX(-50%);font-size:54px;line-height:1;z-index:2;pointer-events:none;
+              animation:tilt 1.1s ease-in-out infinite;filter:drop-shadow(0 2px 8px rgba(0,0,0,.6))}
+  @keyframes tilt{0%,100%{transform:translateX(-50%) rotate(-22deg)}50%{transform:translateX(-50%) rotate(22deg)}}
+  @media(prefers-reduced-motion:reduce){.phone-tilt{animation:none}}
+  .progress{position:absolute;left:14px;right:14px;bottom:44px;height:6px;border-radius:3px;background:rgba(255,255,255,.3);z-index:2;overflow:hidden}
+  .progress i{display:block;height:100%;width:0;background:#fff;transition:width .12s linear}
 </style>
 </head>
 <body>
@@ -150,38 +160,23 @@
     </div>
   </section>
 
-  <!-- SELFIE -->
+  <!-- SELFIE + LIVENESS (checks 4 + 6, one continuous capture) -->
   <section id="selfieScreen" class="screen stack" hidden>
     <div class="steps" id="selfieSteps"><i class="on"></i><i class="on"></i></div>
-    <div><span class="eyebrow" id="selfieStep">Step 2 of 2</span><h2 style="margin-top:5px">Take a selfie</h2>
-      <p style="margin-top:4px" id="selfieCopy">Put your face inside the circle, tap, then slowly tilt the phone.</p></div>
+    <div><span class="eyebrow" id="selfieStep">Step 2 of 2</span><h2 style="margin-top:5px" id="selfieTitle">Selfie &amp; live check</h2>
+      <p style="margin-top:4px" id="selfieCopy">Face in the circle, tap once. Then tilt the <b>phone</b> — we take care of the rest.</p></div>
     <div class="viewport">
       <video id="selfieVideo" playsinline muted autoplay></video>
       <canvas id="selfieFeed" class="feed"></canvas>
-      <img id="selfieShot" hidden alt="">
       <div class="guide circle" id="selfieGuide"></div>
+      <!-- combined guide for the ID + profile phase: card overlapping one eye -->
+      <div class="guide cardslot" id="cardSlot" hidden><span class="tick tl"></span><span class="tick tr"></span><span class="tick bl"></span><span class="tick br"></span></div>
+      <div class="phone-tilt" id="tiltIcon" hidden aria-hidden="true">📱</div>
+      <div class="arrow" id="profileArrow" hidden>➜</div>
+      <div class="progress" id="liveProgress" hidden><i></i></div>
       <div class="hint" id="selfieHint">Center your face and tap the button</div>
     </div>
-    <div id="selfieCapRow"><div class="shutter" id="selfieShutter" role="button" aria-label="Capture selfie"></div></div>
-    <div id="selfieConfirm" class="btn-row" hidden>
-      <button class="btn-ghost" id="selfieRetake">Retake</button>
-      <button class="btn" id="selfieUse">Use photo</button>
-    </div>
-  </section>
-
-  <!-- PROFILE TURN (check 6, killer feature) -->
-  <section id="profileScreen" class="screen stack" hidden>
-    <div class="steps"><i class="on"></i><i class="on"></i><i class="on"></i></div>
-    <div><span class="eyebrow">Step 3 of 3</span><h2 style="margin-top:5px" id="profileTitle">Hold your ID next to your face</h2>
-      <p style="margin-top:4px" id="profileCopy">Tap, then turn your head to the side shown until you're in full profile.</p></div>
-    <div class="viewport">
-      <video id="profileVideo" playsinline muted autoplay></video>
-      <canvas id="profileFeed" class="feed"></canvas>
-      <div class="guide circle" id="profileGuide"></div>
-      <div class="arrow" id="profileArrow" hidden>➜</div>
-      <div class="hint" id="profileHint">Card beside your face, then tap the button</div>
-    </div>
-    <div id="profileCapRow"><div class="shutter" id="profileShutter" role="button" aria-label="Start profile turn"></div></div>
+    <div id="selfieCapRow"><div class="shutter" id="selfieShutter" role="button" aria-label="Start live check"></div></div>
   </section>
 
   <!-- CHECKING -->
@@ -196,7 +191,7 @@
   <!-- RESULT -->
   <section id="resultScreen" class="screen stack" hidden>
     <div class="grow" style="display:flex;flex-direction:column;justify-content:center;gap:16px">
-      <div class="thumbs"><img id="rIdThumb" class="thumb" alt=""><img id="rSelfieThumb" class="thumb" alt=""></div>
+      <div class="thumbs"><img id="rIdThumb" class="thumb" alt=""><img id="rSelfieThumb" class="thumb" alt=""><img id="selfieShot" hidden alt=""></div>
       <div class="result" id="resultBox">
         <div class="disc" id="resultDisc"></div>
         <div class="big" id="resultTitle"></div>
@@ -210,107 +205,99 @@
 
 <script>
 const $ = id => document.getElementById(id);
-const screens = ["intro","idScreen","selfieScreen","profileScreen","checking","resultScreen"];
+const screens = ["intro","idScreen","selfieScreen","checking","resultScreen"];
 function show(id){ screens.forEach(s => $(s).hidden = (s!==id)); }
 
 let stream = null, idBlob = null, selfieBlob = null;
 const meta = { label:"", settings:{}, hasMotion:false,
                claimsMobile:/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent), frameIntervals:[],
-               frames:[], motion:[] };
+               frames:[], motion:[], events:[] };
 let lastT = 0, frameCount = 0;
 
-// ---- Check 4: liveness burst (gyro <-> video) ----
-// During BURST_MS the phone records low-res frames + devicemotion rotationRate
-// (deg/s on iOS and Android) on the same performance.now() clock. The server
-// checks that the picture shifts the way the gyroscope says the phone turned.
-const BURST_MS = 3000, BURST_FRAME_MS = 80, BURST_W = 320;
-
-// ---- Check 6: ID + profile turn (killer feature) ----
-// The session is minted at "Begin" so the phone knows which side the SERVER
-// picked. The server judges against its own copy; meta.profile.side is echo only.
+// ---- Check 4 + 6: ONE continuous live capture on the selfie screen ----
+// Phase A (check 4): the user tilts the PHONE. We record low-res frames +
+// devicemotion (rotationRate deg/s AND acceleration m/s^2, per arXiv 2605.00218
+// where raw acceleration is the most informative channel) on one
+// performance.now() clock. The phase ends as soon as enough rotation has been
+// accumulated (min A_MIN_MS, max A_MAX_MS) so a lively user is done in ~2 s.
+// Phase B (check 6, only with the toggle on): "cover one eye with your ID and
+// turn <side>" — same stream, ~480 px frames, B_MS long. No confirm screens.
+const A_MIN_MS = 1500, A_MAX_MS = 4000, A_FRAME_MS = 80, A_W = 320, A_ROT_DEG = 35;
+const B_MS = 2800, B_FRAME_MS = 110, B_W = 480;
 let session = null;                       // {session_id, challenge, segment_ms, profile_side}
-let profileFrames = [];                   // [{name, blob}] — matches meta.profile.frames[i].file
-const PROFILE_MS = 3500, PROFILE_FRAME_MS = 110, PROFILE_W = 480;
+let burstFrames = [], profileFrames = []; // [{name, blob}] — match meta.frames / meta.profile.frames
+let recordingMotion = false, rotAccum = 0, lastMotionT = 0;
 meta.profile = { enabled:false, side:null, frames:[] };
+meta.events = [];                          // capture-event markers on the same clock
 function killerOn(){ return $("killer").checked; }
-async function recordProfile(videoEl, hintEl, side){
-  profileFrames = []; meta.profile.frames = [];
-  const c = document.createElement("canvas");
-  const vw = videoEl.videoWidth || 640, vh = videoEl.videoHeight || 480;
-  c.width = PROFILE_W; c.height = Math.round(vh * PROFILE_W / vw);
-  const ctx = c.getContext("2d");
-  const pending = [];
-  const t0 = performance.now();
-  let i = 0;
-  await new Promise(done => {
-    const tick = () => {
-      const now = performance.now();
-      if(now - t0 >= PROFILE_MS){ done(); return; }
-      const name = "p" + String(++i).padStart(4,"0") + ".jpg";
-      ctx.drawImage(videoEl, 0, 0, c.width, c.height);            // raw (unmirrored) pixels
-      meta.profile.frames.push({ file:name, t:now });
-      pending.push(new Promise(res => c.toBlob(b => { profileFrames.push({name, blob:b}); res(); }, "image/jpeg", 0.75)));
-      const left = Math.ceil((PROFILE_MS - (now - t0)) / 1000);
-      hintEl.textContent = `Turn your head ${side.toUpperCase()} — all the way… ${left}`;
-      setTimeout(tick, PROFILE_FRAME_MS);
-    };
-    tick();
-  });
-  await Promise.all(pending);
-}
-let burstFrames = [];          // [{name, blob}] — matches meta.frames[i].file
-let recordingMotion = false;
 function onMotion(e){
   const r = e.rotationRate; if(!r || r.alpha==null) return;
   meta.hasMotion = true;
+  if(!recordingMotion) return;
+  const t = performance.now(), a = e.acceleration || {};
   // rx = beta (about x, pitch), ry = gamma (about y, yaw), rz = alpha (about z)
-  if(recordingMotion) meta.motion.push({ t:performance.now(), rx:r.beta, ry:r.gamma, rz:r.alpha });
+  meta.motion.push({ t, rx:r.beta, ry:r.gamma, rz:r.alpha, ax:a.x, ay:a.y, az:a.z });
+  if(lastMotionT){ const dt=(t-lastMotionT)/1000; rotAccum += Math.hypot(r.beta||0, r.gamma||0)*dt; }
+  lastMotionT = t;
 }
-async function recordBurst(videoEl, hintEl){
-  burstFrames = []; meta.frames = []; meta.motion = [];
+function grabFrames(videoEl, width, everyMs, list, metaList, prefix, untilFn, onTick){
   const c = document.createElement("canvas");
   const vw = videoEl.videoWidth || 640, vh = videoEl.videoHeight || 480;
-  c.width = BURST_W; c.height = Math.round(vh * BURST_W / vw);
-  const ctx = c.getContext("2d");
-  const pending = [];
-  recordingMotion = true;
-  const t0 = performance.now();
+  c.width = width; c.height = Math.round(vh * width / vw);
+  const ctx = c.getContext("2d"), pending = [];
   let i = 0;
-  await new Promise(done => {
+  return new Promise(done => {
     const tick = () => {
       const now = performance.now();
-      if(now - t0 >= BURST_MS){ done(); return; }
-      const name = String(++i).padStart(4,"0") + ".jpg";
-      ctx.drawImage(videoEl, 0, 0, c.width, c.height);      // raw (unmirrored) pixels
-      meta.frames.push({ file:name, t:now });
-      pending.push(new Promise(res => c.toBlob(b => { burstFrames.push({name, blob:b}); res(); }, "image/jpeg", 0.7)));
-      const left = Math.ceil((BURST_MS - (now - t0)) / 1000);
-      hintEl.textContent = `Slowly tilt the phone left and right… ${left}`;
-      setTimeout(tick, BURST_FRAME_MS);
+      if(untilFn(now)){ Promise.all(pending).then(done); return; }
+      const name = prefix + String(++i).padStart(4,"0") + ".jpg";
+      ctx.drawImage(videoEl, 0, 0, c.width, c.height);            // raw (unmirrored) pixels
+      metaList.push({ file:name, t:now });
+      pending.push(new Promise(res => c.toBlob(b => { list.push({name, blob:b}); res(); }, "image/jpeg", 0.72)));
+      if(onTick) onTick(now);
+      setTimeout(tick, everyMs);
     };
     tick();
   });
-  recordingMotion = false;
-  await Promise.all(pending);
 }
-
-async function stopStream(){ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }
-async function startCamera(videoEl, facing, collectMeta){
-  await stopStream();
-  stream = await navigator.mediaDevices.getUserMedia({
-    audio:false,
-    video:{ facingMode: facing, width:{ideal:1280}, height:{ideal:960}, frameRate:{ideal:30,max:30} }
-  });
-  videoEl.srcObject = stream;
-  if(collectMeta){
-    const t = stream.getVideoTracks()[0];
-    meta.label = t.label || "";
-    meta.settings = t.getSettings ? t.getSettings() : {};
-    frameCount = 0; lastT = 0;
-    const onF = now => { if(lastT) meta.frameIntervals.push(now-lastT); lastT=now;
-                         if(++frameCount < 45 && videoEl.requestVideoFrameCallback) videoEl.requestVideoFrameCallback(onF); };
-    if(videoEl.requestVideoFrameCallback) videoEl.requestVideoFrameCallback(onF);
-  }
+async function liveCapture(videoEl){
+  const hint = $("selfieHint"), bar = $("liveProgress"), fill = bar.querySelector("i");
+  burstFrames = []; profileFrames = []; meta.frames = []; meta.motion = []; meta.events = [];
+  meta.profile.frames = []; rotAccum = 0; lastMotionT = 0;
+  // the still selfie for the face match = the first frontal frame, taken right now
+  const out = await cropToGuide(videoEl, $("selfieFeed"), $("selfieGuide"), 900);
+  if(out){ selfieBlob = out.blob; $("selfieShot").src = out.url; }
+  // ---- Phase A: tilt the phone
+  $("tiltIcon").hidden = false; bar.hidden = false; fill.style.width = "0%";
+  meta.events.push({ name:"tilt_start", t:performance.now() });
+  recordingMotion = true;
+  const tA = performance.now();
+  await grabFrames(videoEl, A_W, A_FRAME_MS, burstFrames, meta.frames, "",
+    now => (now - tA >= A_MIN_MS && rotAccum >= A_ROT_DEG) || now - tA >= A_MAX_MS,
+    now => { const p = Math.min(1, Math.max((now-tA)/A_MAX_MS, rotAccum/A_ROT_DEG));
+             fill.style.width = (p*100).toFixed(0) + "%";
+             hint.textContent = rotAccum < A_ROT_DEG ? "Tilt the PHONE left and right (not your head)" : "Got it"; });
+  meta.events.push({ name:"tilt_end", t:performance.now() });
+  $("tiltIcon").hidden = true;
+  if(!killerOn()){ recordingMotion = false; bar.hidden = true; return; }
+  // ---- Phase B: ID beside the face, cover one eye, turn to the server-picked side
+  const side = (session && session.profile_side) || "left";
+  meta.profile.enabled = true; meta.profile.side = side;
+  const slot = $("cardSlot"), arrow = $("profileArrow");
+  // The preview is mirrored, so the arrow points the way the user sees it; the
+  // card slot sits on the OPPOSITE side so the card stays in frame while they turn.
+  slot.className = "guide cardslot" + (side === "left" ? "" : " onleft"); slot.hidden = false;
+  arrow.className = "arrow " + side; arrow.textContent = side === "left" ? "⬅" : "➡"; arrow.hidden = false;
+  hint.textContent = `Hold your ID over one eye, then turn ${side.toUpperCase()}`;
+  fill.style.width = "0%";
+  meta.events.push({ name:"profile_start", t:performance.now() });
+  const tB = performance.now();
+  await grabFrames(videoEl, B_W, B_FRAME_MS, profileFrames, meta.profile.frames, "p",
+    now => now - tB >= B_MS,
+    now => { fill.style.width = (Math.min(1,(now-tB)/B_MS)*100).toFixed(0) + "%";
+             hint.textContent = `ID over one eye · turn ${side.toUpperCase()} all the way… ${Math.ceil((B_MS-(now-tB))/1000)}`; });
+  meta.events.push({ name:"profile_end", t:performance.now() });
+  recordingMotion = false; slot.hidden = true; arrow.hidden = true; bar.hidden = true;
 }
 
 // Draw the camera into a canvas with our OWN cover geometry, so display and crop
@@ -363,9 +350,13 @@ $("begin").onclick = async () => {
   // Mint the session now so the phone knows the server-picked profile side.
   try { session = await fetch("/session",{method:"POST"}).then(r=>r.json()); } catch(_){ session = null; }
   const total = killerOn() ? 3 : 2;
-  $("idStep").textContent = `Step 1 of ${total}`; $("selfieStep").textContent = `Step 2 of ${total}`;
+  $("idStep").textContent = `Step 1 of ${total}`; $("selfieStep").textContent = total===3 ? "Steps 2–3 of 3" : "Step 2 of 2";
   $("idSteps").innerHTML = '<i class="on"></i>' + '<i></i>'.repeat(total-1);
-  $("selfieSteps").innerHTML = '<i class="on"></i><i class="on"></i>' + (total===3 ? '<i></i>' : '');
+  $("selfieSteps").innerHTML = '<i class="on"></i><i class="on"></i>' + (total===3 ? '<i class="on"></i>' : '');
+  $("selfieTitle").textContent = killerOn() ? "Selfie, tilt & ID turn" : "Selfie & live check";
+  $("selfieCopy").innerHTML = killerOn()
+    ? "Face in the circle, tap once. Tilt the <b>phone</b>, then hold your ID over one eye and turn the way the arrow shows. About 6&nbsp;seconds."
+    : "Face in the circle, tap once. Then tilt the <b>phone</b> — about 3&nbsp;seconds.";
   show("idScreen");
   try { await startCamera($("idVideo"), {ideal:"environment"}, false); startFeed($("idVideo"), $("idFeed"), false); }
   catch(e){ $("idHint").textContent = "Camera error: " + e.message; }
@@ -388,47 +379,16 @@ $("idUse").onclick = async () => {
   catch(e){ $("selfieHint").textContent = "Camera error: " + e.message; }
 };
 
-// ---- SELFIE ----
+// ---- SELFIE + LIVE CHECK (one tap) ----
 $("selfieShutter").onclick = async () => {
-  if(recordingMotion) return;
+  if(recordingMotion || $("selfieCapRow").hidden) return;
   $("selfieCapRow").hidden = true;
-  await recordBurst($("selfieVideo"), $("selfieHint"));       // 3 s: frames + gyro
-  const out = await cropToGuide($("selfieVideo"), $("selfieFeed"), $("selfieGuide"), 900);
-  if(!out){ $("selfieCapRow").hidden = false; return; }
-  const {blob,url}=out; stopFeed();
-  selfieBlob = blob; $("selfieShot").src = url; $("selfieShot").hidden=false;
-  $("selfieFeed").hidden=true; $("selfieHint").hidden=true;
-  $("selfieCapRow").hidden=true; $("selfieConfirm").hidden=false;
-};
-$("selfieRetake").onclick = () => {
-  burstFrames=[]; meta.frames=[]; meta.motion=[];
-  $("selfieShot").hidden=true; $("selfieFeed").hidden=false; startFeed($("selfieVideo"), $("selfieFeed"), true);
-  $("selfieHint").textContent = "Center your face and tap the button"; $("selfieHint").hidden=false;
-  $("selfieConfirm").hidden=true; $("selfieCapRow").hidden=false;
-};
-$("selfieUse").onclick = async () => {
-  stopFeed();
-  if(!killerOn()){ stopStream(); submit(); return; }
-  // Step 3: keep the front camera, show the server-picked side.
-  const side = (session && session.profile_side) || "left";
-  meta.profile.enabled = true; meta.profile.side = side;
-  show("profileScreen");
-  $("profileArrow").hidden = true;
-  $("profileHint").textContent = "Card beside your face, then tap the button";
-  $("profileCapRow").hidden = false;
-  try { await startCamera($("profileVideo"), "user", false); startFeed($("profileVideo"), $("profileFeed"), true); }
-  catch(e){ $("profileHint").textContent = "Camera error: " + e.message; }
-};
-
-// ---- PROFILE TURN ----
-$("profileShutter").onclick = async () => {
-  if($("profileCapRow").hidden) return;
-  const side = meta.profile.side || "left";
-  $("profileCapRow").hidden = true;
-  // The preview is mirrored, so the on-screen arrow points the way the user sees it.
-  const a = $("profileArrow"); a.className = "arrow " + side; a.textContent = side === "left" ? "⬅" : "➡"; a.hidden = false;
-  await recordProfile($("profileVideo"), $("profileHint"), side);
-  a.hidden = true; stopFeed(); stopStream(); submit();
+  try { await liveCapture($("selfieVideo")); }
+  finally { stopFeed(); stopStream(); }
+  if(!selfieBlob){ $("selfieHint").textContent = "Couldn't grab a frame — tap to retry"; $("selfieCapRow").hidden = false;
+                   try { await startCamera($("selfieVideo"), "user", true); startFeed($("selfieVideo"), $("selfieFeed"), true); } catch(_){}
+                   return; }
+  submit();
 };
 
 // ---- SUBMIT ----
@@ -469,10 +429,13 @@ function render(res){
   show("resultScreen");
 }
 $("restart").onclick = () => { idBlob=selfieBlob=null; meta.frameIntervals=[]; meta.hasMotion=false;
-  session=null; profileFrames=[]; meta.profile={enabled:false, side:null, frames:[]};
+  session=null; burstFrames=[]; profileFrames=[]; meta.frames=[]; meta.motion=[]; meta.events=[];
+  meta.profile={enabled:false, side:null, frames:[]}; selfieBlob=null;
+  $("selfieHint").textContent="Center your face and tap the button"; $("selfieCapRow").hidden=false;
+  ["cardSlot","tiltIcon","profileArrow","liveProgress"].forEach(id=>$(id).hidden=true);
   burstFrames=[]; meta.frames=[]; meta.motion=[]; $("selfieHint").textContent = "Center your face and tap the button";
   $("idShot").hidden=true; $("idFeed").hidden=false; startFeed($("idVideo"), $("idFeed"), false); $("idHint").hidden=false; $("idConfirm").hidden=true; $("idCapRow").hidden=false;
-  $("selfieShot").hidden=true; $("selfieFeed").hidden=false; startFeed($("selfieVideo"), $("selfieFeed"), true); $("selfieHint").hidden=false; $("selfieConfirm").hidden=true; $("selfieCapRow").hidden=false;
+  $("selfieFeed").hidden=false; $("selfieHint").hidden=false;
   show("intro"); };
 </script>
 </body>
