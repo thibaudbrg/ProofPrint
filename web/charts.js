@@ -3,7 +3,7 @@
 window.PPCharts = (() => {
   const RGB = { grey:"#808080", black:"#000", red:"#f00", green:"#0f0", blue:"#00f" };
   const SHADE = { grey:"#F1F1F1", black:"#E6E6E6", red:"#FDE3E0", green:"#E1F5E7", blue:"#E3E8FC" };
-  const C = { r:"#D23B2C", g:"#1E9A4B", b:"#2E44E6", video:"#2E44E6", gyro:"#C96442", ink:"#15191B", ink2:"#5B616B", pass:"#1E7A47", warn:"#B26B0C", fail:"#C13B2C" };
+  const C = { r:"#D23B2C", g:"#1E9A4B", b:"#2E44E6", video:"#0A5AD6", gyro:"#E2001A", ink:"#12203D", ink2:"#5B6B86", pass:"#1E7A47", warn:"#B26B0C", fail:"#E2001A" };
   const fmt = (v, d=2) => v == null || !isFinite(v) ? "—" : (+v).toFixed(d);
 
   // ---- generic line chart: series = [{y:[], color, width, dash}], shared x ----

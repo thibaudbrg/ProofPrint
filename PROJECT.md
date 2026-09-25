@@ -24,6 +24,16 @@ measures head-yaw + side, not face integrity through the turn, so a landmark-tra
 "cleanly". What actually blocks the mask is **check 4 (motion) + check 5 (light)**. Don't credit
 the profile turn on stage for catching the deepfake; it's the phone-motion + screen-light physics.
 
+**2026-09-25 (morning) — Swisscom re-skin of the app + dashboard (touches `web/`).** The UI read as
+a "Claude app" (Fraunces serif + Hanken Grotesk + Space Mono, cream `#FAF9F6`, terracotta
+`#C96442`). Re-skinned to Swisscom brand: **font → Inter** everywhere; **palette →** navy `#001155`
+(headings/wordmark), blue `#0A5AD6` (buttons/links/eyebrow/toggles), red `#E2001A` (block / naïve /
+"blocked" KPI), light-grey `#F4F6FA` bg. All token-driven (`web/index.html` + `web/dashboard.html`
+`:root`), so the brand SVG etc. recolour automatically. `web/charts.js` palette also updated (gyro
+curve terracotta→red, video→blue, fail→red; the R/G/B light-channel colours kept literal). Verified
+by headless-Chrome screenshots of the intro + dashboard. **Not yet re-skinned:** the debug lab pages
+(`web/lab*.html`) still use the old theme — internal tools, low priority.
+
 **Last updated:** 2026-09-24 (night) · Tibo's session pulled PR #3 (Vasiliy's
 `feat/simplify-killer-feature`: check 6 simplified to v3, prep-screen UX, `passporteye`-venv fix,
 `demo.sh`) on top of the uncommitted local work: the experimental face-vs-neck tint check
