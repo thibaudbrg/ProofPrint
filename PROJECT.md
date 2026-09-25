@@ -9,6 +9,21 @@
 
 ## 0. STATUS / LOG (update this after every change)
 
+**2026-09-25 (morning) — Deepfake attack stays the live face mask; stronger swaps archived.**
+Assessed upgrading the demo attack from the Snapchat-grade live mask (`web/facemask.js`) to a
+real neural face-swapper (FaceFusion / hyperswap). Built + tested both a pre-rendered clip attack
+(Option A, in-app toggle) and a live OBS-virtual-camera swap (Option B, laptop). **Decision: keep
+the live face mask for the demo** — the neural swaps were more work/setup without a better demo
+story (Option B is a *weaker* attacker anyway: no gyro on a laptop → caught early). **All that work
+is archived on branch `archive/deepfake-attacks`** (clip.js + toggle, `tools/render_deepfake.sh`
+path fix, `tools/live_swap.sh`, `tools/ATTACKS.md`, full render results) — restore from there if we
+revisit. Needs a `../facefusion` checkout (clone + venv + models, ~1.4 GB, gitignored).
+**⚠ Finding to keep for the pitch (true for the CURRENT mask demo):** the audit log shows the live
+mask scored check 6 (profile turn) **1.0 / pass** (session 2026-09-24 20:54) — check 6 v3 only
+measures head-yaw + side, not face integrity through the turn, so a landmark-tracking mask turns
+"cleanly". What actually blocks the mask is **check 4 (motion) + check 5 (light)**. Don't credit
+the profile turn on stage for catching the deepfake; it's the phone-motion + screen-light physics.
+
 **Last updated:** 2026-09-24 (night) · Tibo's session pulled PR #3 (Vasiliy's
 `feat/simplify-killer-feature`: check 6 simplified to v3, prep-screen UX, `passporteye`-venv fix,
 `demo.sh`) on top of the uncommitted local work: the experimental face-vs-neck tint check
