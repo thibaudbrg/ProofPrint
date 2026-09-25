@@ -4,68 +4,50 @@
   :root{
     --bg:#FAF9F6; --surface:#FFFFFF; --ink:#1C1A17; --ink-2:#6C6860; --line:#EAE6DE;
     --accent:#C96442; --accent-ink:#A94D2E; --accent-bg:#F7E9E2;
-    --ok:#1E7A47; --ok-bg:#E7F2EB; --warn:#B26B0C; --warn-bg:#F8EEDA; --block:#C13B2C; --block-bg:#FAE7E3;
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){
       --bg:#171512; --surface:#211E1A; --ink:#F3EFE8; --ink-2:#A69C8F; --line:#3A342C;
       --accent:#E08361; --accent-ink:#F0A585; --accent-bg:#3A2620;
-      --ok:#5FBE86; --ok-bg:#173325; --warn:#E3A63E; --warn-bg:#3A2E12; --block:#EE7A6A; --block-bg:#3A1D18;
       color-scheme: dark;
     }
   }
   :root[data-theme="dark"]{
     --bg:#171512; --surface:#211E1A; --ink:#F3EFE8; --ink-2:#A69C8F; --line:#3A342C;
     --accent:#E08361; --accent-ink:#F0A585; --accent-bg:#3A2620;
-    --ok:#5FBE86; --ok-bg:#173325; --warn:#E3A63E; --warn-bg:#3A2E12; --block:#EE7A6A; --block-bg:#3A1D18;
     color-scheme: dark;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);
-       font-family:'Hanken Grotesk',system-ui,sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased}
-  .wrap{max-width:640px;margin:0 auto;padding:28px 20px 56px}
-  h1,h2,h3{font-family:'Fraunces',Georgia,serif;font-weight:600;margin:0;letter-spacing:-.01em}
-  .mono{font-family:'Space Mono',ui-monospace,monospace}
-  .eyebrow{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
-           color:var(--accent-ink);font-weight:700}
+       font-family:'Hanken Grotesk',system-ui,sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:600px;margin:0 auto;padding:30px 20px 60px}
+  h1,h2{font-family:'Fraunces',Georgia,serif;font-weight:600;margin:0;letter-spacing:-.01em}
   p{margin:0}
-  .brand{display:flex;align-items:center;gap:9px;margin-bottom:22px}
+  .brand{display:flex;align-items:center;gap:9px;margin-bottom:26px}
   .brand svg{width:22px;height:22px;flex:none}
   .brand span{font-family:'Space Mono',monospace;font-weight:700;letter-spacing:.22em;font-size:13px;color:var(--ink-2)}
-  .hero h1{font-size:clamp(28px,7vw,38px);line-height:1.08;text-wrap:balance;margin-top:8px}
-  .hero .tag{font-size:16px;color:var(--ink-2);margin-top:10px;max-width:46ch}
-  .pill{display:inline-flex;align-items:center;gap:6px;font-family:'Space Mono',monospace;font-size:11px;
-        font-weight:700;letter-spacing:.04em;padding:4px 10px;border-radius:999px}
-  .pill.block{background:var(--block-bg);color:var(--block)}
-  .pill.ok{background:var(--ok-bg);color:var(--ok)}
-  .pill.accent{background:var(--accent-bg);color:var(--accent-ink)}
-  section{margin-top:38px}
-  section > h2{font-size:20px}
-  section > .lede{color:var(--ink-2);font-size:14.5px;margin-top:6px;max-width:56ch}
-  .stack{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+  .eyebrow{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+           color:var(--accent-ink);font-weight:700}
+  h1{font-size:clamp(26px,7vw,34px);line-height:1.15;text-wrap:balance;margin-top:8px}
+  section{margin-top:34px}
+  section > h2{font-size:19px;margin-bottom:10px}
+  .p{font-size:15px;color:var(--ink);margin-top:0}
+  .p + .p{margin-top:12px}
   .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
-  .signal{display:grid;grid-template-columns:28px 1fr;gap:12px 14px}
-  .signal .n{width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;display:grid;
-             place-items:center;font-family:'Space Mono',monospace;font-weight:700;font-size:12px}
-  .signal h3{font-size:15px}
-  .signal .why{font-size:13.5px;color:var(--ink-2);margin-top:4px;line-height:1.5}
-  .signal .cite{display:inline-block;margin-top:7px;font-family:'Space Mono',monospace;font-size:10.5px;
-                 color:var(--accent-ink);background:var(--accent-bg);padding:2px 7px;border-radius:6px}
-  .stat-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
-  .stat{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
-  .stat .v{font-family:'Fraunces',serif;font-size:22px;font-weight:600}
-  .stat .k{font-size:12px;color:var(--ink-2);margin-top:2px;line-height:1.35}
-  .divider{height:1px;background:var(--line);margin:38px 0 0}
-  .flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:'Space Mono',monospace;
-        font-size:11.5px;color:var(--ink-2);margin-top:14px}
-  .flow b{color:var(--ink);font-weight:700}
-  .flow .arrow{color:var(--accent)}
-  footer{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);
-         display:flex;flex-direction:column;gap:6px;color:var(--ink-2);font-size:13px}
-  footer .mono{color:var(--ink)}
-  a{color:var(--accent-ink)}
-  .limit{font-size:13px;color:var(--ink-2);margin-top:10px;padding-left:14px;border-left:2px solid var(--line)}
+  .stack{display:flex;flex-direction:column;gap:10px}
+  .check{padding:14px 0;border-top:1px solid var(--line)}
+  .check:first-child{border-top:0;padding-top:0}
+  .check b{font-family:'Fraunces',serif;font-size:15.5px;font-weight:600}
+  .check p{font-size:14.5px;color:var(--ink-2);margin-top:4px}
+  .limit{background:var(--accent-bg);border-radius:14px;padding:16px 18px}
+  .limit .eyebrow{color:var(--accent-ink)}
+  .limit p{font-size:14.5px;margin-top:8px;color:var(--ink)}
+  .sources{font-size:12.5px;color:var(--ink-2);line-height:1.7}
+  .sources a{color:var(--accent-ink);text-decoration:none}
+  .sources a:hover{text-decoration:underline}
+  footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);
+         color:var(--ink-2);font-size:13px}
 </style>
 
 <div class="wrap">
@@ -77,120 +59,111 @@
     <span>PROOFPRINT</span>
   </div>
 
-  <div class="hero">
-    <span class="eyebrow">Swisscom · Fighting Identity Fraud in the Age of AI</span>
-    <h1>A deepfake can fake your face. It can't fake your phone.</h1>
-    <p class="tag">Onboarding for a Qualified Electronic Signature asks for an ID photo and a selfie.
-      A $50 face-swap tool defeats that check today. We fuse signals a deepfake can't reproduce —
-      device physics, not pixels — into one risk score, with a step-up only for risky sessions.</p>
-  </div>
+  <span class="eyebrow">Swisscom · Fighting Identity Fraud in the Age of AI</span>
+  <h1>How we catch a deepfake before it gets a real signature</h1>
 
   <section>
-    <span class="eyebrow">The vector</span>
-    <h2 style="margin-top:6px">Deepfake video injected into the onboarding capture</h2>
-    <p class="lede">Confirmed with Swisscom's own trust-services mentors: voice deepfakes are already
-      covered in production. The open gap is <b style="color:var(--ink)">deepfake pictures</b> in the
-      ID + selfie journey — exactly what current liveness checks are losing ground on industry-wide.</p>
+    <h2>The attack</h2>
+    <p class="p">Swisscom's onboarding asks for a photo of your ID and a selfie, then issues a
+      legally binding electronic signature. Attackers no longer need to fool the camera. They
+      feed a fake video straight into the app, bypassing the camera entirely. The app never sees
+      a real person, and never sees a real camera.</p>
   </section>
 
   <section>
-    <span class="eyebrow">The mitigation</span>
-    <h2 style="margin-top:6px">Six checks, fused into one decision</h2>
-    <p class="lede">Every added check keeps genuine users passing silently. Nothing here is a bare
-      retry — a retry only teaches an attacker which fake failed.</p>
+    <h2>Our approach</h2>
+    <p class="p">We combine several signals into one risk score: the document, the face, and the
+      device itself. Most people pass with no extra step. Only a risky session gets an extra
+      check. This sits on top of the service Swisscom already uses to route identity checks
+      between providers, so it adds one more layer rather than replacing anything.</p>
+  </section>
 
-    <div class="stack">
-      <div class="card signal">
-        <div class="n">1–3</div>
-        <div>
-          <h3>Identity, document, capture integrity</h3>
-          <p class="why">Face match against the deskewed document portrait · MRZ read with ICAO
-            check digits recomputed, never trusted from OCR · virtual-camera device labels and
-            sensor presence flagged before anything else runs.</p>
-        </div>
-      </div>
-
-      <div class="card signal">
-        <div class="n">4</div>
-        <div>
-          <h3>Gyroscope ↔ video — the core signal</h3>
-          <p class="why">The phone tilts; a real camera's background must move with it. Background
-            optical flow (the face masked out, so a nodding head is never mistaken for injection)
-            correlated against device motion, lag-searched. A phone that never moves at all —
-            a stand, an emulator — is rejected outright.</p>
-          <span class="cite">arXiv:2605.00218 — selfie-capture dynamics as an auxiliary signal</span>
-        </div>
-      </div>
-
-      <div class="card signal">
-        <div class="n">5</div>
-        <div>
-          <h3>Light pulse — screen colour ↔ skin</h3>
-          <p class="why">The screen paints a server-minted, single-use colour sequence; the skin's
-            reflected chroma must match it, timed within a lag window. A recording or a face-swap
-            can't answer a challenge that didn't exist when the fake was made.</p>
-          <span class="cite">cf. iProov Flashmark — challenge–response liveness</span>
-        </div>
-      </div>
-
-      <div class="card signal">
-        <div class="n">6</div>
-        <div>
-          <h3>Profile turn — the killer feature</h3>
-          <p class="why">A server-picked, per-session nonce: turn your head fully to one side.
-            Real-time face-swap models map only 50–60% of landmarks in profile and visibly warp
-            past ~60°. The side can't be pre-computed, and it's what trust professionals already
-            ask for in a human video-ident call — legitimate, not exotic.</p>
-          <span class="cite">Metaphysic / Biometric Update — profile view breaks live face-swap</span>
-        </div>
-      </div>
+  <section>
+    <h2>What we check</h2>
+    <div class="card stack" style="gap:0">
+      <div class="check"><b>Document</b><p>Does the ID's digital signature actually match a real,
+        unaltered document.</p></div>
+      <div class="check"><b>Face</b><p>Does the selfie match the photo on the ID.</p></div>
+      <div class="check"><b>Device</b><p>Does the background in the video move the way it would
+        if someone were really holding the phone. A deepfake fed into the app can copy a face,
+        but it can't make the background react to the phone's own motion.</p></div>
+      <div class="check"><b>The turn</b><p>Right at the end, we ask the person to turn their
+        head. Which side they turn to is picked at random, in the moment, by our server.</p></div>
     </div>
-
-    <div class="limit">Simplified deliberately: an earlier version also matched the physical ID
-      card in-frame. Card detection failed in real venue light on the first phone test, so we cut
-      it — the head-turn signal alone was already validated and correct. Simpler and tested beats
-      sophisticated and unverified.</div>
   </section>
 
   <section>
-    <span class="eyebrow">Validation</span>
-    <h2 style="margin-top:6px">How we'd know it works</h2>
-    <p class="lede">Standard biometric anti-spoofing metrics, run against an attack kit built only
-      on our own consenting faces:</p>
-    <div class="stat-row">
-      <div class="stat"><div class="v">APCER</div><div class="k">Attack presentation classification
-        error — % of virtual-cam / replay / stand attacks that get through</div></div>
-      <div class="stat"><div class="v">BPCER</div><div class="k">Bona-fide presentation classification
-        error — % of genuine users wrongly stepped up or blocked</div></div>
-    </div>
-    <p class="lede" style="margin-top:14px">Attack species mirror CEN/TS 18099: virtual camera,
-      device/browser hooking, a phone on a stand. Every session — decision, per-signal scores,
-      device, no images — lands in an audit log queryable live at <span class="mono">GET /log</span>,
-      which is also the calibration tool for the thresholds below.</p>
+    <h2>Why we never just ask for a retry</h2>
+    <p class="p">If a check fails, we don't send the person back to try the same step again. A
+      retry tells an attacker exactly which fake failed, so they load the next one and try
+      again. Give them enough retries and one eventually gets through. A failed check leads to a
+      different, harder check instead.</p>
   </section>
 
   <section>
-    <span class="eyebrow">Data flywheel</span>
-    <h2 style="margin-top:6px">What Swisscom's own data would train</h2>
-    <div class="flow">
-      <b>confirmed fraud / genuine cases</b><span class="arrow">→</span>
-      <b>audit log</b><span class="arrow">→</span>
-      <b>per-signal score distributions</b><span class="arrow">→</span>
-      <b>calibrated thresholds</b><span class="arrow">→</span>
-      <b>tighter fusion</b>
-    </div>
-    <p class="lede" style="margin-top:12px">Today's thresholds are hand-set from synthetic tests
-      and a handful of real runs. The log already stores exactly what's needed to replace them
-      with fitted ones: face/motion/light/profile scores against the actual decision, first-name
-      only, never an image, never a raw biometric trace.</p>
+    <h2>Why the phone-movement check</h2>
+    <p class="p">A deepfake video is generated or played back on its own. It has no way to know
+      how someone is actually holding and tilting a phone at that exact moment. We ask the
+      person to move the phone, then check that the picture shifts exactly the way that motion
+      would produce. One study on selfie capture found this alone catches an attacker whose
+      phone is sitting still on a stand or running in an emulator, since a real hand can't hold a
+      phone perfectly still.</p>
   </section>
 
-  <div class="divider"></div>
+  <section>
+    <h2>Why we flash red, green and blue</h2>
+    <p class="p">While the selfie is being recorded, the screen flashes a short, random sequence
+      of pure red, green and blue, with grey pauses between them. Skin lit by the screen reflects
+      those colours back into the camera. Pure primary colours are the easiest for a camera to
+      tell apart, and grey pauses keep the face lit enough to still detect it and give us a
+      stable baseline to measure against. Our server generates the sequence the moment someone
+      starts, so a video made earlier can't have the right colours in the right order.</p>
+    <p class="p">Real-time face-swap tools have no way to relight themselves to match a colour
+      they don't know is coming. Researchers tested this directly against one such tool and
+      found it simply stopped reacting to the light.</p>
+  </section>
+
+  <section>
+    <h2>Why the turn is the strongest check</h2>
+    <p class="p">A face swap is really a flat image glued onto the video, frame by frame. It
+      isn't a real, three-dimensional face, and that shows up in two different ways.</p>
+    <p class="p">It can't be lit correctly from an unexpected direction. Real skin has depth, and
+      the way it reflects light changes with the direction of that light. A flat, mapped-on
+      texture can't reproduce that, which is why the light check catches it.</p>
+    <p class="p">It can't turn to the side correctly either. Real-time face-swap tools track the
+      face using flat, 2D reference points, and they lose more than half of those points once
+      the face turns side-on. Past a certain angle, the fake visibly breaks down.</p>
+    <p class="p">Something passing in front of the face — a hand, an ID card — breaks these tools
+      for the same reason. They have to paint the fake face over whatever's blocking it, in real
+      time, without any real sense of depth.</p>
+    <p class="p">We ask for the turn last, right at the end of the selfie: it's the one moment
+      that asks the deepfake to be something it isn't. The side is picked after the session
+      starts, so a fake prepared in advance can't know which way to turn. This is also already
+      standard practice: a trained human agent on a video identification call asks for exactly
+      this. We're automating a check Swisscom's own validation specialists already trust.</p>
+  </section>
+
+  <section>
+    <div class="limit">
+      <span class="eyebrow">The honest limit</span>
+      <p>Newer face-swap tools that build a real 3D model of the face are starting to handle a
+        turned head better. We're not claiming this is unbeatable. We're raising the cost of the
+        attack from a $50 tool to a research pipeline.</p>
+    </div>
+  </section>
 
   <footer>
-    <div><span class="pill accent">Live demo</span> &nbsp; naïve app fooled → Proofprint blocks
-      the same attack → genuine user still passes in seconds.</div>
-    <div class="mono">github.com/thibaudbrg/facemask-swiss-week-hackathon</div>
-    <div>Swiss {ai} Weeks · Zurich · 24–25 Sep 2026</div>
+    <div class="sources">
+      <b style="color:var(--ink)">Sources:</b><br>
+      <a href="https://arxiv.org/abs/2605.00218" target="_blank" rel="noopener">arXiv:2605.00218</a>, selfie-capture dynamics as an auxiliary signal against deepfakes (phone-movement check)<br>
+      Tang et al., <a href="https://arxiv.org/abs/1801.01949" target="_blank" rel="noopener">"Face Flashing," NDSS 2018</a> (why pure red/green/blue with grey pauses)<br>
+      Farrukh et al., <a href="https://habiba-farrukh.github.io/files/FaceRevelio.pdf" target="_blank" rel="noopener">"FaceRevelio," MobiCom 2020</a> (screen-as-light-source method)<br>
+      Gerstner and Farid, <a href="https://openaccess.thecvf.com/content/CVPR2022W/WMF/papers/Gerstner_Detecting_Real-Time_Deep-Fake_Videos_Using_Active_Illumination_CVPRW_2022_paper.pdf" target="_blank" rel="noopener">"Detecting Real-Time Deep-Fake Videos Using Active Illumination," CVPR Workshops 2022</a> (a live face-swap tool tested and found unresponsive to the light)<br>
+      Metaphysic.ai, <a href="https://medium.com/synthetic-media/to-uncover-a-deepfake-video-call-ask-the-caller-to-turn-sideways-1238b32bf131" target="_blank" rel="noopener">"To Uncover a Deepfake Video Call, Ask the Caller to Turn Sideways"</a><br>
+      Biometric Update, <a href="https://www.biometricupdate.com/202208/face-biometrics-limitations-with-profile-images-could-help-deepfake-detection" target="_blank" rel="noopener">"Face biometrics' limitations with profile images could help deepfake detection"</a><br>
+      KnowBe4, <a href="https://blog.knowbe4.com/tips-for-detecting-real-time-deepfakes-a-guide-to-staying-one-step-ahead" target="_blank" rel="noopener">"Tips for Detecting Real-time Deepfakes"</a><br>
+      <a href="https://idnow.io/developers/videoident/" target="_blank" rel="noopener">IDnow VideoIdent</a>, standard practice for regulated video identification
+    </div>
+    <div style="margin-top:16px">Swiss {ai} Weeks · Zurich · 24–25 Sep 2026</div>
   </footer>
 </div>

@@ -43,6 +43,8 @@ server/sessions/
 !web/assets/**
 # demo attack rig: source face for deepfake injection (not live biometric capture)
 !web/attack/source_face.jpg
+# pitch brief QR code (not biometric capture)
+!assets/pitch-brief-qr.png
 
 # ---------- Secrets / local config ----------
 .env
