@@ -1,10 +1,10 @@
-// Proofprint — shared SVG charts for the analyst dashboard and the labs. No dependencies.
+// Proofprint - shared SVG charts for the analyst dashboard and the labs. No dependencies.
 // Every function takes a container element and the signal object exactly as the server returns it.
 window.PPCharts = (() => {
   const RGB = { grey:"#808080", black:"#000", red:"#f00", green:"#0f0", blue:"#00f" };
   const SHADE = { grey:"#F1F1F1", black:"#E6E6E6", red:"#FDE3E0", green:"#E1F5E7", blue:"#E3E8FC" };
   const C = { r:"#D23B2C", g:"#1E9A4B", b:"#2E44E6", video:"#0A5AD6", gyro:"#E2001A", ink:"#12203D", ink2:"#5B6B86", pass:"#1E7A47", warn:"#B26B0C", fail:"#E2001A" };
-  const fmt = (v, d=2) => v == null || !isFinite(v) ? "—" : (+v).toFixed(d);
+  const fmt = (v, d=2) => v == null || !isFinite(v) ? " - " : (+v).toFixed(d);
 
   // ---- generic line chart: series = [{y:[], color, width, dash}], shared x ----
   function line(el, x, series, {h=200, ylines=[], xlabel="ms", marker=null, sym=false, bands=[], xband=null, dots=null, W=900} = {}){
@@ -35,10 +35,10 @@ window.PPCharts = (() => {
 
   const z = a => { a = a.map(Number); const m = a.reduce((s, v) => s + v, 0) / a.length; const sd = Math.sqrt(a.reduce((s, v) => s + (v - m) ** 2, 0) / a.length) || 1; return a.map(v => (v - m) / sd); };
 
-  // ---- check 5: one picture — screen sequence (row 1), skin answer (row 2), skin channels (chart) ----
+  // ---- check 5: one picture - screen sequence (row 1), skin answer (row 2), skin channels (chart) ----
   function lightPanel(el, light){
     const s = light && light.series;
-    if(!s){ el.innerHTML = `<div class="pp-empty">no curves — ${(light && light.flags || []).join(", ") || "check did not run"}</div>`; return; }
+    if(!s){ el.innerHTML = `<div class="pp-empty">no curves - ${(light && light.flags || []).join(", ") || "check did not run"}</div>`; return; }
     const segs = light.per_segment || [], shift = light.lag_fit_ms || 0;
     const W = 1000, L = 54, R = 16, ROW1 = 30, ROW2 = 40, GAP = 8, CH = 230, B = 28;
     const top1 = 8, top2 = top1 + ROW1 + GAP, ctop = top2 + ROW2 + GAP, H = ctop + CH + B;
@@ -77,7 +77,7 @@ window.PPCharts = (() => {
   // ---- check 4: video flow vs gyro, horizontal and vertical, z-scored at the fitted lag ----
   function motionPanel(elH, elV, motion){
     const s = motion && motion.series;
-    if(!s || !s.t_ms || s.t_ms.length < 3){ const m = `<div class="pp-empty">no curves — ${motion && (motion.reason || (motion.flags || []).join(", ")) || "check did not run"}</div>`; elH.innerHTML = m; if(elV) elV.innerHTML = ""; return; }
+    if(!s || !s.t_ms || s.t_ms.length < 3){ const m = `<div class="pp-empty">no curves - ${motion && (motion.reason || (motion.flags || []).join(", ")) || "check did not run"}</div>`; elH.innerHTML = m; if(elV) elV.innerHTML = ""; return; }
     line(elH, s.t_ms, [{ y: z(s.flow_x), color: C.video }, { y: z(s.gyro_yaw), color: C.gyro, dash: "6 4" }], { h: 170, sym: true });
     if(elV) line(elV, s.t_ms, [{ y: z(s.flow_y), color: C.video }, { y: z(s.gyro_pitch), color: C.gyro, dash: "6 4" }], { h: 170, sym: true });
   }
@@ -85,7 +85,7 @@ window.PPCharts = (() => {
   // ---- check 6: yaw proxy per frame, + = towards the requested side ----
   function profilePanel(el, profile, { turnMin = 0.12, turnFull = 0.22 } = {}){
     const ys = profile && profile.yaw_series;
-    if(!ys || !ys.length){ el.innerHTML = `<div class="pp-empty">no yaw track — ${profile && (profile.reason || profile.verdict) || "check did not run"}</div>`; return; }
+    if(!ys || !ys.length){ el.innerHTML = `<div class="pp-empty">no yaw track - ${profile && (profile.reason || profile.verdict) || "check did not run"}</div>`; return; }
     const sign = profile.side === "right" ? -1 : 1;
     const x = ys.map((_, i) => i), y = ys.map(v => v == null ? null : v * sign);
     line(el, x, [{ y, color: C.gyro, width: 2.4 }], { h: 170, sym: true, xlabel: "frame",

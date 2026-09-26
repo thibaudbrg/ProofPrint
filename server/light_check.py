@@ -1,4 +1,4 @@
-"""Check 5 — light pulse: does the skin reflect the colours the SCREEN just showed?
+"""Check 5 - light pulse: does the skin reflect the colours the SCREEN just showed?
 
 The phone paints a server-minted random colour sequence full-screen (grey lead-in,
 R/G/B ×2 + 2 grey guards in random order, random 380–560 ms slots, grey tail) while
@@ -23,7 +23,7 @@ insufficient when the response is flat (SNR < 3 or amplitude < 0.012 → step-up
 pass: daylight and an injected video look the same), review ≥ 0.50, else fail (a strong
 response to the WRONG colours = a replay of another session).
 
-Thresholds were set on synthetic captures (see tests/test_light_check.py) — calibrate
+Thresholds were set on synthetic captures (see tests/test_light_check.py) - calibrate
 on real phones with the light lab (/lab/light).
 References: Face Flashing (NDSS 2018), FaceRevelio (MobiCom 2020), Gerstner & Farid
 (CVPRW 2022). Positioned as a FUSION signal (iProov Flashmark patents cover the primitive).
@@ -39,7 +39,7 @@ import face_match
 
 # ---- colours ---------------------------------------------------------------
 CH = {"red": 0, "green": 1, "blue": 2}          # RGB channel index; anything else = guard (K)
-GUARD = "grey"                                  # #808080 — keeps the face lit, same chroma contrast as black
+GUARD = "grey"                                  # #808080 - keeps the face lit, same chroma contrast as black
 RGB = {"grey": [128, 128, 128], "black": [0, 0, 0], "red": [255, 0, 0], "green": [0, 255, 0], "blue": [0, 0, 255]}
 
 # ---- timing ----------------------------------------------------------------
@@ -63,7 +63,7 @@ LUT = np.where(_x <= 0.04045, _x / 12.92, ((_x + 0.055) / 1.055) ** 2.4).astype(
 
 # ============================================================================ challenge
 def mint(rng=None) -> dict:
-    """Server-minted challenge: {"slots": [names], "dur_ms": [ms]} — CSPRNG, no two equal neighbours."""
+    """Server-minted challenge: {"slots": [names], "dur_ms": [ms]} - CSPRNG, no two equal neighbours."""
     r = secrets.SystemRandom() if rng is None else rng
     while True:
         body = ["red", "red", "green", "green", "blue", "blue", GUARD, GUARD]

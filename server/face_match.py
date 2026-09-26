@@ -1,7 +1,7 @@
 """Face detection + recognition with OpenCV YuNet + SFace (both commercial-safe).
 
-YuNet  — detector, MIT       (MIR 2023)
-SFace  — recognizer, Apache  (IEEE TIP 2021)
+YuNet - detector, MIT       (MIR 2023)
+SFace - recognizer, Apache  (IEEE TIP 2021)
 Models ship in the OpenCV Zoo; this downloads them on first run if missing.
 """
 from __future__ import annotations
@@ -22,7 +22,7 @@ SFACE = ("face_recognition_sface_2021dec.onnx",
          "face_recognition_sface/face_recognition_sface_2021dec.onnx")
 
 # OpenCV Zoo's own suggested thresholds. CALIBRATE the band on your own
-# ID-vs-selfie pairs — expect lower scores than selfie-vs-selfie (see DocFace+).
+# ID-vs-selfie pairs - expect lower scores than selfie-vs-selfie (see DocFace+).
 COSINE_MATCH = 0.363   # >= this = same person (OpenCV default)
 COSINE_LOW = 0.28      # < this = clear mismatch; between the two = review
 
@@ -71,7 +71,7 @@ def _orientations(bgr):
 def _best_face(bgr: np.ndarray):
     """Find the best face across the 4 rotations. Returns (face_row, image, score, w, h) or None.
 
-    Prefer the highest DETECTION SCORE (col 14), not the biggest box — a low
+    Prefer the highest DETECTION SCORE (col 14), not the biggest box - a low
     threshold can otherwise grab a large non-face patch on a busy document.
     """
     det, _ = _load()

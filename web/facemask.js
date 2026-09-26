@@ -1,10 +1,10 @@
-// Option C — live in-browser face mask (the demo "deepfake").
+// Option C - live in-browser face mask (the demo "deepfake").
 //
 // MediaPipe FaceLandmarker finds 478 points on the live camera face; the same
 // topology on a still source face lets us warp the source onto the live face
 // triangle-by-triangle (Delaunay). The result is drawn to a canvas and handed
 // back as a MediaStream, so it flows through the normal selfie pipeline. No OS
-// virtual camera is needed — we own the page — so this works on the phone.
+// virtual camera is needed - we own the page - so this works on the phone.
 //
 // It's a face-mesh overlay (Snapchat-lens grade), not an offline swap. It warps
 // hard at a full profile and at fast motion; for the demo that IS the point

@@ -1,4 +1,4 @@
-"""Check 4 — gyroscope <-> video motion consistency (the core check).
+"""Check 4 - gyroscope <-> video motion consistency (the core check).
 
 A deepfake pushed through a virtual camera copies a face, but the video does not
 move when the *phone* moves. A real front camera on a real phone does: when the
@@ -11,8 +11,8 @@ The phone records, during a short "tilt your phone" burst:
 and the server checks that the two agree.
 
 Method (arXiv 2605.00218 "Selfie-capture dynamics": IMU as an auxiliary signal;
-raw acceleration is the most informative channel and *stationary proxies* —
-phone on a stand, emulator — are rejected outright):
+raw acceleration is the most informative channel and *stationary proxies* -
+phone on a stand, emulator - are rejected outright):
   1. Sparse optical flow (Shi-Tomasi + Lucas-Kanade) on BACKGROUND points only.
      The face box (YuNet, first frame) is masked out so a user moving their head
      cannot look like camera motion. Median displacement per frame pair -> px/s.
@@ -135,7 +135,7 @@ def _pearson_abs(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def correlate(t_mid, vx, vy, mt, rx, ry) -> dict:
-    """Search the lag that best aligns gyro (rx=pitch-role, ry=yaw-role — see the
+    """Search the lag that best aligns gyro (rx=pitch-role, ry=yaw-role - see the
     `check()` docstring for which raw DeviceMotion field the client currently
     maps to each) with flow (vx horizontal, vy vertical). Returns score, lag
     and the aligned series."""
@@ -175,11 +175,11 @@ def check(motion: list[dict] | None, frames: list[tuple[float, np.ndarray]] | No
 
     rx/ry are a FIELD-NAME CONTRACT with the client, not literal DeviceMotion
     property names: rx correlates against VERTICAL flow (the "pitch-role"
-    axis), ry against HORIZONTAL flow (the "yaw-role" axis) — see `correlate()`.
+    axis), ry against HORIZONTAL flow (the "yaw-role" axis) - see `correlate()`.
     Which raw DeviceMotionEvent.rotationRate property (alpha/beta/gamma) the
     client puts in each field was corrected 2026-09-24 after a real-phone test
     (web/index.html's onMotion(): verified on an iPhone that a yaw "door-turn"
-    shows up in `beta`, not `gamma` as first guessed) — this function doesn't
+    shows up in `beta`, not `gamma` as first guessed) - this function doesn't
     care which raw property it was, only that the contract above holds.
     """
     if not motion and not frames:
@@ -218,7 +218,7 @@ def check(motion: list[dict] | None, frames: list[tuple[float, np.ndarray]] | No
     stationary = gyro_rms < STATIONARY_GYRO_DPS and (acc_rms is not None and acc_rms < STATIONARY_ACC_MS2)
 
     if stationary:
-        # arXiv 2605.00218: stationary proxies are rejected outright — a hand
+        # arXiv 2605.00218: stationary proxies are rejected outright - a hand
         # never holds a phone this still. Stand, emulator, or synthetic sensors.
         return _log({"ok": False, "verdict": "fail", "score": 0.0, "lag_ms": 0,
                      "reason": "stationary_device", "flags": ["stationary_device"], **base})

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One command to run Proofprint end to end: sets up the venv if needed, starts
 # the auto-reloading server, opens a public HTTPS tunnel (the phone camera
-# needs a secure context — a plain http://<lan-ip> won't work), and prints the
+# needs a secure context - a plain http://<lan-ip> won't work), and prints the
 # link to open on your phone. Ctrl+C stops both.
 #
 # Usage:
@@ -10,7 +10,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-PORT=8010   # NOT 8000 — VS Code Live Share silently forwards a teammate's
+PORT=8010   # NOT 8000 - VS Code Live Share silently forwards a teammate's
             # :8000 onto your own localhost:8000, so you'd end up serving
             # (or tunnelling) their app instead of yours. See PROJECT.md §8.
 
@@ -31,7 +31,7 @@ echo "-- installing/checking dependencies (fast if already up to date) --"
 ./.venv/bin/pip install -q -r requirements.txt
 
 if ! ./.venv/bin/python -c "import passporteye" >/dev/null 2>&1; then
-  echo "!! passporteye failed to import even after install — check 2 (MRZ) will silently"
+  echo "!! passporteye failed to import even after install - check 2 (MRZ) will silently"
   echo "   report 'no MRZ' for every document. See PROJECT.md's venv gotcha."
 fi
 if ! command -v tesseract >/dev/null 2>&1; then
@@ -50,7 +50,7 @@ TUNNEL_LOG=$(mktemp)
 
 # uvicorn --reload forks its actual worker via Python's multiprocessing, which
 # shows up in `ps`/`pgrep -f` as a bare "spawn_main(...)" line with NO trace of
-# "uvicorn" or "main:app" in it — pattern-matching the command line misses it
+# "uvicorn" or "main:app" in it - pattern-matching the command line misses it
 # entirely, and a killed reloader can leave that worker orphaned (PPID 1),
 # still bound to the port. Kill by PORT instead: authoritative regardless of
 # what the process calls itself.
@@ -68,9 +68,9 @@ kill_port() {
 echo "-- making sure :$PORT is free (clearing any leftover run) --"
 kill_port "$PORT"
 # A crashed previous run can also leave its cloudflared pointed at OUR port
-# still running (uselessly — its URL is dead once the old server is gone).
+# still running (uselessly - its URL is dead once the old server is gone).
 # Safe to clear here, before we start: nothing legitimate should be pointed
-# at this exact port yet. (Never done during shutdown — see cleanup()'s note.)
+# at this exact port yet. (Never done during shutdown - see cleanup()'s note.)
 pkill -f "cloudflared tunnel --url http://localhost:$PORT" 2>/dev/null || true
 
 CLEANED_UP=0
@@ -80,7 +80,7 @@ cleanup() {
   echo
   echo "-- stopping server + tunnel --"
   # Only ever touch PIDs THIS run started (SERVER_PID/its own children, and our
-  # own TUNNEL_PID) — never pattern-match by command line here. Two instances
+  # own TUNNEL_PID) - never pattern-match by command line here. Two instances
   # of this script share the exact same cloudflared command line, and a broad
   # `pkill -f cloudflared` in one instance's cleanup was seen to kill the
   # OTHER instance's tunnel too. Port-clearing (kill_port) is a pre-flight
@@ -94,7 +94,7 @@ cleanup() {
   [ -n "${TUNNEL_PID:-}" ] && kill -9 "$TUNNEL_PID" 2>/dev/null || true
   if lsof -ti "tcp:$PORT" >/dev/null 2>&1; then
     echo "   note: :$PORT is still occupied (probably a reload worker this script can't see" \
-         "by PID) — it will be cleared automatically the next time you run ./demo.sh."
+         "by PID) - it will be cleared automatically the next time you run ./demo.sh."
   fi
 }
 trap cleanup EXIT INT TERM
@@ -107,14 +107,14 @@ SERVER_PID=$!
 for _ in $(seq 1 20); do
   curl -sf -o /dev/null "http://localhost:$PORT/" && break
   if ! kill -0 "$SERVER_PID" 2>/dev/null; then
-    echo "!! server process exited immediately — tail of its log:"
+    echo "!! server process exited immediately - tail of its log:"
     tail -30 "$SERVER_LOG"
     exit 1
   fi
   sleep 0.5
 done
 if ! curl -sf -o /dev/null "http://localhost:$PORT/"; then
-  echo "!! server did not come up — tail of its log:"
+  echo "!! server did not come up - tail of its log:"
   tail -30 "$SERVER_LOG"
   exit 1
 fi
@@ -132,7 +132,7 @@ for _ in $(seq 1 30); do
 done
 
 if [ -z "$URL" ]; then
-  echo "!! tunnel did not report a URL in time — tail of its log:"
+  echo "!! tunnel did not report a URL in time - tail of its log:"
   tail -30 "$TUNNEL_LOG"
   exit 1
 fi
@@ -155,13 +155,13 @@ echo
 while true; do
   sleep 15
   if ! kill -0 "$SERVER_PID" 2>/dev/null; then
-    echo "!! the server process died — tail of its log:"; tail -30 "$SERVER_LOG"; exit 1
+    echo "!! the server process died - tail of its log:"; tail -30 "$SERVER_LOG"; exit 1
   fi
   if ! kill -0 "$TUNNEL_PID" 2>/dev/null; then
-    echo "!! the tunnel process died — tail of its log:"; tail -30 "$TUNNEL_LOG"; exit 1
+    echo "!! the tunnel process died - tail of its log:"; tail -30 "$TUNNEL_LOG"; exit 1
   fi
   if grep -q "Tunnel not found" "$TUNNEL_LOG" 2>/dev/null; then
-    echo "!! the tunnel reports 'Tunnel not found' and is stuck retrying — that URL is dead."
+    echo "!! the tunnel reports 'Tunnel not found' and is stuck retrying - that URL is dead."
     echo "   Stop this (Ctrl+C) and run ./demo.sh again for a fresh link."
     break
   fi

@@ -1,4 +1,4 @@
-# Proofprint — how each check works (short version)
+# Proofprint - how each check works (short version)
 
 One phone session produces six signals. Each is computed **on the server** from what the phone
 uploaded, gets a verdict, and the verdicts are fused into one decision. The phone only captures.
@@ -50,9 +50,9 @@ Rules on the capture metadata: camera label matches a known virtual camera (OBS,
 
 The user turns the phone left/right for 6 s. Two independent recordings of the *same* motion:
 
-- **video** — background points tracked frame to frame (Lucas–Kanade optical flow; the face is
+- **video** - background points tracked frame to frame (Lucas–Kanade optical flow; the face is
   masked out so head movement does not count) → horizontal and vertical speed $v_x(t), v_y(t)$ in px/s
-- **gyroscope** — angular rates $\omega_{yaw}(t), \omega_{pitch}(t)$ in °/s, resampled to the frame times
+- **gyroscope** - angular rates $\omega_{yaw}(t), \omega_{pitch}(t)$ in °/s, resampled to the frame times
 
 A real camera turning right makes the background slide left: the two curves are the same shape.
 Their agreement is the Pearson correlation, searched over a camera delay $L \in [0, 300]$ ms:
@@ -76,7 +76,7 @@ accelerometer are perfectly flat (phone on a stand / emulator). Real runs: 0.74�
 The server rolls a random colour sequence *at that moment* (grey · R,G,B ×2 + grey ×2 in random
 order, 380–560 ms each · grey ≈ 4.9 s) and the phone paints it full-screen while filming the face.
 
-Per frame, on skin patches (forehead, cheeks — from the face landmarks) and on the background:
+Per frame, on skin patches (forehead, cheeks - from the face landmarks) and on the background:
 the colour balance, not the brightness, as log-ratios; face minus background cancels the camera's
 auto-exposure and white balance; the grey slots give the baseline:
 
@@ -86,9 +86,9 @@ M_c(t) = z_c(t) - \text{baseline}_c(t)$$
 Under a red flash the prediction is $M \approx (+\tfrac{2}{3}, -\tfrac{1}{3}, -\tfrac{1}{3})\cdot k$:
 red up, the others down. Three separate questions, over a camera delay $L \in [-40, 420]$ ms:
 
-- **acc** — in each of the 6 colour slots, is the channel that rose most the right one? (6/6 = 1.0)
-- **ρ** — Pearson correlation between the predicted square waves and the measured $M(t)$, best $L$
-- **p** — chance: the same score against 1000 *random* sequences; $p$ = fraction that did as well
+- **acc** - in each of the 6 colour slots, is the channel that rose most the right one? (6/6 = 1.0)
+- **ρ** - Pearson correlation between the predicted square waves and the measured $M(t)$, best $L$
+- **p** - chance: the same score against 1000 *random* sequences; $p$ = fraction that did as well
 
 $$\text{score} = \tfrac12\,\frac{acc - \tfrac13}{\tfrac23} + \tfrac12\,\min\!\Big(1, \frac{\rho}{0.8}\Big),
 \qquad \text{score} \le 0.45 \text{ if } p > 0.05$$
@@ -122,7 +122,7 @@ The jump penalty is the face-swap signature: a mask "snaps" when the mesh loses 
 
 ## How the decision is made
 
-Not an average — a rule, evaluated in order. The naïve app (Act 2) stops after the first line.
+Not an average - a rule, evaluated in order. The naïve app (Act 2) stops after the first line.
 
 ```
 naive          →  match → pass · review → second check · else → block
@@ -132,11 +132,11 @@ SECOND  if     face review  OR  integrity flag  OR  document flag
 CHECK   OR     motion   ∈ {review, insufficient, absent, skipped}
         OR     light    ∈ {review, insufficient, absent, skipped}
         OR     profile  ∈ {review, insufficient, absent}
-PASS    otherwise  — the face matches AND every enabled check passed
+PASS    otherwise - the face matches AND every enabled check passed
 ```
 
 So: **every enabled check must pass** for a pass (AND); **any one hard failure blocks** (OR);
-anything in between — including a user who skipped a step — goes to a second factor, never to a
+anything in between - including a user who skipped a step - goes to a second factor, never to a
 silent pass. A check switched off on the phone is *absent* and simply not counted.
 
 Each `result` carries `reasons[]`: the exact lines above that fired, in plain English, shown in

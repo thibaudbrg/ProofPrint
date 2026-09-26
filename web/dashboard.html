@@ -134,7 +134,7 @@ const SYM = { ok:"✓", warn:"~", bad:"✗", off:"–" }, WORD = { ok:"passed", 
 const stateOf = v => v == null ? "off" : (STATE[v] || "warn");
 const mark = v => { const st = stateOf(v); return `<span class="mk ${st}" title="${WORD[st]}${v && v !== st ? " (" + v + ")" : ""}">${SYM[st]}</span>`; };
 const RESULT = { pass:"Verified", step_up:"Second check", block:"Blocked" };
-const result = v => `<span class="res">${mark(v)}${RESULT[v] || v || "—"}</span>`;
+const result = v => `<span class="res">${mark(v)}${RESULT[v] || v || " - "}</span>`;
 const LABEL = WORD;
 const when = s => (s || "").replace("T", " ").replace("+00:00", "");
 const pct = (n, t) => t ? `${Math.round(100 * n / t)} %` : "";
@@ -168,7 +168,7 @@ function renderSummary(s){
 // ---- sessions list ----
 function renderRows(){
   $("rows").innerHTML = rows.map(r => `<tr data-id="${r.session_id}">
-    <td class="mono">${when(r.created_at)}</td><td>${r.first_name || "—"}</td><td>${result(r.decision)}</td>
+    <td class="mono">${when(r.created_at)}</td><td>${r.first_name || " - "}</td><td>${result(r.decision)}</td>
     <td>${mark(r.id_flags?.length ? "flagged" : (r.doc_type ? "ok" : null))}</td>
     <td>${mark(r.face_verdict)}</td>
     <td>${mark(r.light_verdict)}</td>
@@ -202,7 +202,7 @@ async function openRun(id){
   // 1 document
   const d = sg.id || {}, mrz = d.mrz;
   cards.innerHTML += card("Document", "photo of the ID, machine-readable zone", d.flags?.length ? "flagged" : (d.portrait_found ? "ok" : "review"),
-    facts(mrz ? { "type": `${mrz.format || ""} ${d.doc_type || ""}`, "name": row.first_name, "born": mrz.birth_date, "valid until": mrz.expiry_date + (mrz.expired ? " — EXPIRED" : ""),
+    facts(mrz ? { "type": `${mrz.format || ""} ${d.doc_type || ""}`, "name": row.first_name, "born": mrz.birth_date, "valid until": mrz.expiry_date + (mrz.expired ? " - EXPIRED" : ""),
                   "check digits": Object.values(mrz.checks || {}).every(Boolean) ? "all valid" : "mismatch", "portrait found": d.portrait_found ? "yes" : "no", "issues": flags(d.flags) }
                 : { "type": d.doc_type === "no_mrz" ? "no machine-readable zone" : d.doc_type, "portrait found": d.portrait_found ? "yes" : "no", "issues": flags(d.flags) }));
   // 2 face
@@ -256,7 +256,7 @@ poll(); setInterval(poll, 3000);
 // The phone itself can't stream its screen to a browser; the Mac captures it instead:
 //   1. USB + QuickTime (File → New Movie Recording → camera: iPhone) or AirPlay → this Mac.
 //   2. Cast: first try the iPhone as a plain video device (Chrome lists a USB iPhone once QuickTime
-//      has opened it), else window capture — pick the QuickTime / AirPlay window.
+//      has opened it), else window capture - pick the QuickTime / AirPlay window.
 let castStream = null;
 async function startCast(){
   $("phoneMsg").hidden = true;

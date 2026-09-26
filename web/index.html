@@ -112,7 +112,7 @@
   /* "photo taken" toast */
   .toast{position:absolute;left:50%;top:14px;transform:translateX(-50%);background:rgba(255,255,255,.95);color:var(--ok);
          font-weight:700;border-radius:999px;padding:7px 14px;z-index:3;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.25)}
-  /* big phone glyph for the phone-move phase — it slides with the outline */
+  /* big phone glyph for the phone-move phase - it slides with the outline */
   .turn-art{position:relative;width:100%;aspect-ratio:220/200}
   .turn-ring,.turnphone{position:absolute;inset:0;width:100%;height:100%;display:block}
   .turnphone{filter:drop-shadow(0 4px 14px rgba(0,0,0,.55));animation:turnphone 2.4s ease-in-out infinite;transform-origin:50% 50%}
@@ -169,6 +169,7 @@
   .result.pass{background:var(--ok-bg);color:var(--ok)}
   .result.step_up{background:var(--warn-bg);color:var(--warn)}
   .result.block{background:var(--block-bg);color:var(--block)}
+  .result.net{background:#EEF2F8;color:var(--navy)}   /* connection error - neutral, NOT a verdict */
   .result .disc{width:66px;height:66px;border-radius:50%;background:#fff;display:grid;place-items:center}
   .meta{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11.5px;color:var(--ink-2);word-break:break-word}
   .doc{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
@@ -234,10 +235,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M6 3h12v4l-3 3v11H9V10L6 7z"></path><path d="M12 13v3"></path></svg>
       </button>
-      <div class="hint" id="idHint">Fit your ID in the frame — it snaps by itself (or tap)</div>
+      <div class="hint" id="idHint">Fit your ID in the frame - it snaps by itself (or tap)</div>
     </div>
     <div id="idCapRow"><div class="shutter" id="idShutter" role="button" aria-label="Capture document"></div>
-      <button class="btn-link" id="idSkipBack" hidden style="display:block;margin:6px auto 0">Skip — my document has no code lines (e.g. driving licence)</button></div>
+      <button class="btn-link" id="idSkipBack" hidden style="display:block;margin:6px auto 0">Skip - my document has no code lines (e.g. driving licence)</button></div>
     <div id="idConfirm" class="btn-row" hidden>
       <button class="btn-ghost" id="idRetake">Retake</button>
       <button class="btn" id="idUse">Use photo</button>
@@ -284,7 +285,7 @@
       <div class="arrow" id="profileArrow" hidden>➜</div>
       <div class="progress" id="liveProgress" hidden><i></i></div>
       <div class="toast" id="shotToast" hidden>✓ Photo taken</div>
-      <div class="hint" id="selfieHint">Fill the outline with your face — it snaps by itself (or tap)</div>
+      <div class="hint" id="selfieHint">Fill the outline with your face - it snaps by itself (or tap)</div>
     </div>
     <div id="selfieCapRow"><div class="shutter" id="selfieShutter" role="button" aria-label="Take selfie"></div></div>
     <div id="selfieConfirm" class="btn-row" hidden>
@@ -364,17 +365,17 @@
   </section>
 </div>
 
-<!-- DEMO SETTINGS (PoC only — hidden behind the gear, a normal user never sees this) -->
+<!-- DEMO SETTINGS (PoC only - hidden behind the gear, a normal user never sees this) -->
 <div class="sheet-bg" id="sheetBg" hidden>
   <div class="sheet" role="dialog" aria-label="Demo settings">
     <div class="sheet-h"><span class="eyebrow">Demo settings</span><button class="btn-link" id="sheetClose">Done</button></div>
     <div class="toggles">
       <label class="toggle naive" for="tNaive">
-        <span><b>Naïve app</b><small>face + document only — the app a deepfake fools</small></span>
+        <span><b>Naïve app</b><small>face + document only - the app a deepfake fools</small></span>
         <input type="checkbox" id="tNaive"><span class="switch" aria-hidden="true"></span>
       </label>
       <label class="toggle naive" for="tInject">
-        <span><b>Live face mask (deepfake)</b><small>attack — masks your live selfie with another face before the server sees it</small></span>
+        <span><b>Live face mask (deepfake)</b><small>attack - masks your live selfie with another face before the server sees it</small></span>
         <input type="checkbox" id="tInject"><span class="switch" aria-hidden="true"></span>
       </label>
       <span class="eyebrow" style="margin-top:6px">Liveness checks</span>
@@ -445,17 +446,17 @@ let lastT = 0, frameCount = 0;
 // Phase A (check 4): a big phone glyph slides in the centre; the user moves the PHONE (pan
 // left-right / up-down, not roll, not the head). We record low-res frames + devicemotion (rotationRate deg/s + acceleration m/s^2) on one
 // performance.now() clock. Fixed length (A_MS); the rotation is only used to coach the user.
-// Phase B (check 6, simplified): "hold your ID in your LEFT hand, turn your head <side>" —
+// Phase B (check 6, simplified): "hold your ID in your LEFT hand, turn your head <side>" -
 // same stream, ~480 px frames. The ID-in-hand is a demo/UX instruction only; nothing about
 // the card is detected. What's actually scored is the head turn (yaw), the one signal
 // confirmed correct on a real phone.
-const A_MS = 6000, A_FRAME_MS = 80, A_W = 320, A_ROT_DEG = 35;   // fixed 6 s — the bar is the clock, never early
+const A_MS = 6000, A_FRAME_MS = 80, A_W = 320, A_ROT_DEG = 35;   // fixed 6 s - the bar is the clock, never early
 const A_SWING_DEG = 18, A_NUDGE_MS = 1300;                        // haptic coach: buzz at each ±18° swing, nudge if stalled
 const B_MS = 4500, B_FRAME_MS = 110, B_W = 480;          // recording window, starts when the head starts to move
 const B_ARM_MAX_MS = 12000, B_SETTLE_MS = 800, B_PREROLL_MS = 600;   // wait for the turn (max), settle, frontal pre-roll
 const B_MOVE_THRESH = 6.0, B_MOVE_TICKS = 2;               // mean |Δ| in the centre patch (8-bit), consecutive ticks
 let session = null;                       // {session_id, profile_side}
-let burstFrames = [], profileFrames = [], lightFrames = []; // [{name, blob}] — match meta.frames / meta.profile.frames / meta.light.frames
+let burstFrames = [], profileFrames = [], lightFrames = []; // [{name, blob}] - match meta.frames / meta.profile.frames / meta.light.frames
 let recordingMotion = false, rotAccum = 0, lastMotionT = 0, yawAngle = 0;
 function onMotion(e){
   const r = e.rotationRate; if(!r || r.alpha==null) return;
@@ -472,7 +473,7 @@ function onMotion(e){
 
 // Haptics. Android: navigator.vibrate. iOS Safari has no vibration API; toggling a native
 // <input type="checkbox" switch> is the only thing that clicks the Taptic engine from a web
-// page (iOS 17.4+; silent on older versions — best effort, never required).
+// page (iOS 17.4+; silent on older versions - best effort, never required).
 const hapticSwitch = document.createElement("input");
 hapticSwitch.type = "checkbox"; hapticSwitch.setAttribute("switch", ""); hapticSwitch.tabIndex = -1;
 hapticSwitch.style.cssText = "position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none";
@@ -504,28 +505,28 @@ function grabFrames(videoEl, width, everyMs, list, metaList, prefix, untilFn, on
 }
 
 // Full-screen instruction before each live phase. Resolves true on "I'm ready", false on "Skip"
-// (the skip button only exists for the light check — photosensitivity opt-out, never a penalty).
+// (the skip button only exists for the light check - photosensitivity opt-out, never a penalty).
 function instruct(kind, side){
   const steps = kind === "move" ? [
       "Hold the phone in front of your face, arm half bent.",
-      "Slowly <b>turn the phone left and right</b> around its upright axis — like showing your screen to someone beside you. Don't spin it like a steering wheel.",
+      "Slowly <b>turn the phone left and right</b> around its upright axis - like showing your screen to someone beside you. Don't spin it like a steering wheel.",
       "Keep your face inside the outline. Move the <b>phone</b>, not your head.",
-      "Feel the buzz? That's one swing — now go the other way. Keep going until the bar is full (6 seconds)."]
+      "Feel the buzz? That's one swing - now go the other way. Keep going until the bar is full (6 seconds)."]
     : kind === "light" ? [
       "Hold the phone about <b>a hand-span (20–25 cm)</b> from your face, straight in front of you.",
       "<b>Look at the screen and keep still.</b> It will show a few colours for about 5 seconds.",
       "Tip: turn your <b>screen brightness up</b> and stay away from windows and direct sunlight."]
     : [ `Hold your ID card in your <b>right hand</b>, inside the small dotted frame.`,
-        `Take your time. When you're ready, <b>slowly</b> turn your head to the <b>${side.toUpperCase()}</b> until we only see your profile — the clock only starts when you start turning.`,
-        "Keep going for about 3 seconds — an arrow will point the way."];
+        `Take your time. When you're ready, <b>slowly</b> turn your head to the <b>${side.toUpperCase()}</b> until we only see your profile - the clock only starts when you start turning.`,
+        "Keep going for about 3 seconds - an arrow will point the way."];
   $("insTitle").textContent = { move:"Now turn your phone", light:"Quick light check", profile:"Now hold your ID and turn" }[kind];
   $("insSteps").innerHTML = steps.map((t,i) => `<div><span class="n">${i+1}</span><span>${t}</span></div>`).join("");
   $("insNote").textContent = { move:"We check that the picture moves exactly as the phone's sensors say it moved.",
-                               light:"Your skin must reflect a colour sequence we pick right now — a recording or a face-swap can't.",
+                               light:"Your skin must reflect a colour sequence we pick right now - a recording or a face-swap can't.",
                                profile:"Face-swap tools fall apart once the head reaches a full profile." }[kind];
   $("insArtPhone").hidden = kind !== "move"; $("insArtProfile").hidden = kind !== "profile"; $("insArtLight").hidden = kind !== "light";
-  const WARN = { light: "This step shows <b>flashing colours</b> (about one change per half second). If flashing lights affect you, skip it — you'll get an alternative check instead.",
-                 move: "Make sure you are <b>standing or sitting still</b> — not in a moving car, train or tram. The sensors would feel the vehicle, not you. If you are travelling, skip this step." };
+  const WARN = { light: "This step shows <b>flashing colours</b> (about one change per half second). If flashing lights affect you, skip it - you'll get an alternative check instead.",
+                 move: "Make sure you are <b>standing or sitting still</b> - not in a moving car, train or tram. The sensors would feel the vehicle, not you. If you are travelling, skip this step." };
   $("insWarn").hidden = !WARN[kind]; $("insWarnText").innerHTML = WARN[kind] || "";
   const skip = $("insSkip"); skip.hidden = !WARN[kind];
   // reduced-motion users get the opt-out as a full button
@@ -537,7 +538,7 @@ function instruct(kind, side){
 
 // ---- Check 5 (light pulse): mint just in time, flash, record. ONE run; a second one only when the
 // sequence could not be shown at all (a colour never painted, wrong order, tab went to background).
-// Timing jitter / low fps are the server's business — it fits the lag — so a slow phone is never
+// Timing jitter / low fps are the server's business - it fits the lag - so a slow phone is never
 // made to sit through the colours twice.
 async function phaseLight(videoEl){
   const ui = { flash:$("lightFlash"), thumb:$("lightThumb"), hint:$("lightHint"), fill:$("lightBar").querySelector("i") };
@@ -558,7 +559,7 @@ async function phaseLight(videoEl){
 async function phaseMove(videoEl){
   const hint = $("selfieHint"), bar = $("liveProgress"), fill = bar.querySelector("i");
   burstFrames = []; meta.frames = []; meta.motion = []; rotAccum = 0; lastMotionT = 0; yawAngle = 0;
-  $("selfieOverlay").hidden = true;                       // no silhouette here — just the turning phone
+  $("selfieOverlay").hidden = true;                       // no silhouette here - just the turning phone
   $("phoneGlyph").hidden = false; bar.hidden = false; fill.style.width = "0%";
   hint.className = "hint big";
   // Coach: the user should swing the phone left, then right, then left… Each time the integrated
@@ -588,7 +589,7 @@ async function phaseMove(videoEl){
   $("phoneGlyph").hidden = true; bar.hidden = true; hint.className = "hint"; $("selfieOverlay").hidden = false;
 }
 
-// Check 6, simplified: the ID-in-hand is a spoken/instruction-screen cue only —
+// Check 6, simplified: the ID-in-hand is a spoken/instruction-screen cue only -
 // nothing about the card is detected here. What's scored is the head turn.
 // Cheap "is the head moving?" detector for the profile phase: mean absolute difference between
 // consecutive 48-px frames in the centre of the picture (the phone is still, only the head moves).
@@ -621,7 +622,7 @@ async function phaseProfile(videoEl){
   bar.hidden = false; fill.style.width = "0%";
   meta.events.push({ name:"profile_start", t:performance.now() });
   recordingMotion = true;
-  // Two states. ARMED: we film but the clock does not run — the user takes their time to get the
+  // Two states. ARMED: we film but the clock does not run - the user takes their time to get the
   // card up and understand the arrow. The clock (B_MS) starts the moment the head starts to move
   // (motion probe), or after B_ARM_MAX_MS at the latest. Frames before the start are dropped
   // except a short frontal pre-roll (the server wants a frontal frame first).
@@ -657,7 +658,7 @@ async function phaseProfile(videoEl){
 
 // ---- camera plumbing ----
 // Attack path (demo toggle): a live in-browser face mask stands in for the
-// front camera (web/facemask.js). Runs on the phone — see that file.
+// front camera (web/facemask.js). Runs on the phone - see that file.
 function stopInject(){ if (window.FaceMask) window.FaceMask.stop(); }
 async function injectedStream(){
   if (!window.FaceMask) throw new Error("face mask module not loaded");
@@ -699,11 +700,11 @@ function sharpness(canvas){
 }
 function blurHint(el, sharp){
   el.hidden = false;
-  if (sharp < BLUR_THRESH){ el.className="hint warn"; el.textContent=`Looks blurry (sharpness ${sharp.toFixed(0)}) — hold still and retake`; }
-  else { el.className="hint"; el.textContent=`Sharp (${sharp.toFixed(0)}) — looks good`; }
+  if (sharp < BLUR_THRESH){ el.className="hint warn"; el.textContent=`Looks blurry (sharpness ${sharp.toFixed(0)}) - hold still and retake`; }
+  else { el.className="hint"; el.textContent=`Sharp (${sharp.toFixed(0)}) - looks good`; }
 }
-const HINT_ID="Fit your ID in the frame — it snaps by itself (or tap)", HINT_ID_BACK="Fit the back — the «<<<» lines — it snaps by itself (or tap)",
-      HINT_SELFIE="Fill the outline with your face — it snaps by itself (or tap)";
+const HINT_ID="Fit your ID in the frame - it snaps by itself (or tap)", HINT_ID_BACK="Fit the back - the «<<<» lines - it snaps by itself (or tap)",
+      HINT_SELFIE="Fill the outline with your face - it snaps by itself (or tap)";
 // Flashlight for the document shots: shown only when the rear camera reports a torch
 // (Android Chrome; iOS Safari 17+ on the back camera). Off again whenever the stream stops.
 let torchOn = false;
@@ -882,7 +883,7 @@ function cropToGuide(videoEl, canvasEl, guideEl, capLong=1200){
 
 // ---- INTRO ----
 $("begin").onclick = async () => {
-  // user gesture: ask for motion (iOS) up front — "no motion on a phone" is an attack tell
+  // user gesture: ask for motion (iOS) up front - "no motion on a phone" is an attack tell
   if (typeof DeviceMotionEvent?.requestPermission === "function"){ try{ await DeviceMotionEvent.requestPermission(); }catch(_){} }
   window.addEventListener("devicemotion", onMotion);
   // Mint the session now so the phone knows the server-picked profile side.
@@ -913,8 +914,8 @@ $("idShutter").onclick = async () => {
 };
 $("idRetake").onclick = resetIdCapture;
 // Note on the killer feature's UX: the profile-turn side is already known here
-// (session minted at Begin), and `instruct("profile", side)` — called from
-// selfieUse below, right before phaseProfile runs — tells the user which way
+// (session minted at Begin), and `instruct("profile", side)` - called from
+// selfieUse below, right before phaseProfile runs - tells the user which way
 // they'll turn before the camera starts recording it. Showing it early costs
 // nothing: the protection is the server picking the side per-session and
 // checking server-side, not hiding it from the honest user holding the phone.
@@ -933,7 +934,7 @@ $("selfieShutter").onclick = async () => {
   stopFeed();                                          // the stream stays open for the live phases
   $("selfieCapRow").hidden = true; $("selfieHint").hidden = true;
   haptic("tick");
-  runLivePhases();                                     // no preview, no confirm — straight on
+  runLivePhases();                                     // no preview, no confirm - straight on
 };
 function resumeSelfieFeed(){
   $("selfiePreview").hidden = true; $("selfieFeed").hidden = false; $("selfieOverlay").hidden = false;
@@ -976,8 +977,7 @@ async function submit(){
   $("rIdThumb").src = idFrontUrl || $("idShot").src; $("rSelfieThumb").src = $("selfieShot").src;
   meta.mode = naiveOn() ? "naive" : "full";
   meta.checks = { motion: motionOn(), profile: killerOn(), doc_back: docOn(), light: lightOn() };
-  try {
-    const s = session || await fetch("/session",{method:"POST"}).then(r=>r.json());
+  const buildFd = () => {
     const fd = new FormData();
     for(const f of profileFrames) fd.append("profile_frames", f.blob, f.name);
     for(const f of lightFrames) fd.append("light_frames", f.blob, f.name);
@@ -986,9 +986,23 @@ async function submit(){
     if (idBackBlob) fd.append("id_back", idBackBlob, "id_back.jpg");
     for(const f of burstFrames) fd.append("frames", f.blob, f.name);
     fd.append("meta", JSON.stringify(meta));
-    const res = await fetch(`/session/${s.session_id}/capture`,{method:"POST",body:fd}).then(r=>r.json());
-    render(res);
-  } catch(e){ render({decision:"block", signals:{face:{reason:"network error: "+e.message}, integrity:{ok:true,flags:[]}, motion:{}, light:{}}}); }
+    return fd;
+  };
+  // A cloudflare quick tunnel drops its QUIC link every so often; a capture that
+  // lands in that window fails at the network layer (Safari: "Load failed"). Retry
+  // a few times, and if it STILL won't go through show a neutral "connection lost"
+  // - never a false "block", which would look like we rejected a real user on stage.
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++){
+    if (attempt) await new Promise(r => setTimeout(r, 700 * attempt));
+    try {
+      if (!session) session = await fetch("/session",{method:"POST"}).then(r=>{ if(!r.ok) throw new Error("server "+r.status); return r.json(); });
+      const r = await fetch(`/session/${session.session_id}/capture`,{method:"POST",body:buildFd()});
+      if (!r.ok) throw new Error("server "+r.status);
+      return render(await r.json());
+    } catch(e){ lastErr = e; }
+  }
+  renderNetworkError(lastErr);
 }
 
 function renderDoc(id){
@@ -1006,18 +1020,30 @@ function renderDoc(id){
     const c = m.checks || {}; const allOk = Object.values(c).every(v => v!==false);
     rows.push(["Check digits", allOk ? '<span class="good">valid</span>' : '<span class="bad">mismatch</span>']);
   } else {
-    rows.push(["Data", id.doc_type==="no_mrz" ? "none read — driving licence, or back not captured" : "—"]);
+    rows.push(["Data", id.doc_type==="no_mrz" ? "none read - driving licence, or back not captured" : " - "]);
   }
   rows.push(["Portrait", id.portrait_found ? '<span class="good">found</span>' : '<span class="bad">not found</span>']);
   $("docRows").innerHTML = rows.map(([k,v]) => `<div class="doc-row"><span>${k}</span><span>${v}</span></div>`).join("");
   box.hidden = false;
 }
 
+let netRetry = false;
+function renderNetworkError(e){
+  const box = $("resultBox"); box.className = "result net";
+  $("resultTitle").textContent = "Connection lost";
+  $("resultSub").textContent = "Couldn't reach the server. Check the Wi-Fi and tap Try again - your photos are still here.";
+  $("resultDisc").innerHTML = `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5a10 10 0 0 1 14 0"/><path d="M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="0.6" fill="currentColor"/><path d="M3 3l18 18"/></svg>`;
+  $("docBox").hidden = true;
+  $("resultMeta").textContent = "network error: " + ((e && e.message) || e || "upload failed") + " - the check did not run (this is the connection, not a decision)";
+  netRetry = true; $("restart").textContent = "Try again";
+  show("resultScreen");
+}
 function render(res){
+  netRetry = false; $("restart").textContent = "Start over";
   const f = res.signals.face || {}, ig = res.signals.integrity || {}, mo = res.signals.motion || {};
   const box = $("resultBox"); box.className = "result " + res.decision;
   const title = {pass:"You're verified.", step_up:"One more step.", block:"We couldn't confirm it."}[res.decision] || res.decision;
-  const sub = {pass:"Your identity is confirmed.", step_up:"Let's add a quick check — it's not a problem.",
+  const sub = {pass:"Your identity is confirmed.", step_up:"Let's add a quick check - it's not a problem.",
                block:"Something didn't line up. Please try again."}[res.decision] || "";
   $("resultTitle").textContent = title; $("resultSub").textContent = sub;
   const col = getComputedStyle(box).color;
@@ -1038,6 +1064,7 @@ function render(res){
   show("resultScreen");
 }
 $("restart").onclick = () => {
+  if (netRetry){ netRetry=false; $("restart").textContent="Start over"; submit(); return; }
   idBlob=idBackBlob=selfieBlob=null; idFrontUrl=null; session=null; idBusy=selfieBusy=false;
   meta.frameIntervals=[]; meta.hasMotion=false; meta.frames=[]; meta.motion=[]; meta.events=[];
   meta.profile={enabled:false, side:null, frames:[]}; delete meta.light; delete meta.skipped; burstFrames=[]; profileFrames=[]; lightFrames=[];

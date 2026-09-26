@@ -1,8 +1,8 @@
-"""Check 3 — capture integrity.
+"""Check 3 - capture integrity.
 
 Cheap browser-only signals that say "this stream probably didn't come from a
 real phone front camera". None is proof on its own (labels are spoofable), so
-the output is a list of flags that raise risk, not a hard verdict — except a
+the output is a list of flags that raise risk, not a hard verdict - except a
 known virtual-camera label, which we treat as a block.
 
 Signals (see swisscom-research/web_feasibility.md §6):
@@ -36,7 +36,7 @@ def check(meta: dict | None) -> dict:
     if meta.get("hasMotion") is False and meta.get("claimsMobile"):
         flags.append("no_motion_sensors")
 
-    # Frame timing is a WEAK, noisy signal — a good phone camera in steady light
+    # Frame timing is a WEAK, noisy signal - a good phone camera in steady light
     # is genuinely very regular, so it false-flags. Keep it informational only:
     # it does NOT affect the decision (see research: weak on its own).
     info = []

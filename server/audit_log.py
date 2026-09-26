@@ -1,7 +1,7 @@
-"""Session log — a small SQLite audit trail for calibration and the analyst view.
+"""Session log - a small SQLite audit trail for calibration and the analyst view.
 
 Privacy by design: we keep the SCORES, never the person.
-  - only the FIRST given name from the MRZ (to tell test runs apart) — no surname,
+  - only the FIRST given name from the MRZ (to tell test runs apart) - no surname,
     no birth date, no document number, no nationality
   - no images, no embeddings, no raw sensor traces
   - device info is limited to "phone vs desktop" and the camera label (attack forensics)
@@ -38,8 +38,6 @@ CREATE TABLE IF NOT EXISTS sessions (
   motion_verdict  TEXT,
   light_score     REAL,               -- check 5, NULL when off / skipped
   light_verdict   TEXT,
-  neck_score      REAL,               -- face-vs-neck tint consistency (experimental, not fused)
-  neck_verdict    TEXT,
   profile_score   REAL,               -- check 6
   profile_verdict TEXT,
   mode            TEXT,               -- full | naive
@@ -52,11 +50,11 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 COLUMNS = ("session_id", "created_at", "first_name", "decision", "face_score", "face_verdict",
            "doc_type", "id_flags", "integrity_ok", "integrity_flags", "motion_score",
-           "motion_verdict", "light_score", "light_verdict", "neck_score", "neck_verdict",
+           "motion_verdict", "light_score", "light_verdict",
            "profile_score", "profile_verdict", "mode", "platform", "camera_label", "pipeline", "result_json")
 
 # Columns added after the first deployment; ALTERed in when an older DB is opened.
-MIGRATIONS = {"light_score": "REAL", "light_verdict": "TEXT", "neck_score": "REAL", "neck_verdict": "TEXT",
+MIGRATIONS = {"light_score": "REAL", "light_verdict": "TEXT",
               "profile_score": "REAL", "profile_verdict": "TEXT", "mode": "TEXT", "result_json": "TEXT"}
 
 # Never persisted: anything that is a picture of the person.
@@ -126,8 +124,6 @@ def record(session_id: str, result: dict, meta: dict) -> Optional[int]:
             "motion_verdict": motion.get("verdict"),
             "light_score": light.get("score") if light.get("enabled") else None,
             "light_verdict": light.get("verdict") if light.get("enabled") else None,
-            "neck_score": (light.get("neck") or {}).get("score"),
-            "neck_verdict": (light.get("neck") or {}).get("verdict"),
             "profile_score": profile.get("score") if profile.get("enabled", True) else None,
             "profile_verdict": profile.get("verdict") if profile.get("enabled", True) else None,
             "mode": result.get("mode"),
@@ -194,7 +190,7 @@ def get(session_id: str) -> Optional[dict[str, Any]]:
 
 def stats() -> dict[str, Any]:
     """Counts per decision / mode / check verdict, and score spreads per decision for each
-    scored check — the numbers you need to set the thresholds and to fill the dashboard."""
+    scored check - the numbers you need to set the thresholds and to fill the dashboard."""
     with _connect() as con:
         n_total = con.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
         by_decision = dict(con.execute("SELECT decision, COUNT(*) FROM sessions GROUP BY decision").fetchall())

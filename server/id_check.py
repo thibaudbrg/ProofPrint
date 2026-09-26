@@ -1,4 +1,4 @@
-"""Check 2 — the ID document.
+"""Check 2 - the ID document.
 
 Turns the card photo into (a) a clean portrait for face matching and (b) structured
 document data, the way a real onboarding app does. Every step degrades gracefully:
@@ -48,7 +48,7 @@ def deskew(bgr: np.ndarray) -> tuple[np.ndarray, bool]:
     """Find the card's outline and straighten it. Returns (image, did_deskew).
 
     If no convincing quadrilateral is found (e.g. the card already fills the crop),
-    the input is returned unchanged — that is the common case with our guided capture.
+    the input is returned unchanged - that is the common case with our guided capture.
     """
     h, w = bgr.shape[:2]
     gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)

@@ -1,7 +1,7 @@
-"""Check 6 — the profile-turn challenge (the killer feature, simplified).
+"""Check 6 - the profile-turn challenge (the killer feature, simplified).
 
 In the SAME continuous capture as the selfie, right after the phone-tilt phase,
-the user holds their ID in their LEFT hand (a fixed, simple instruction — not
+the user holds their ID in their LEFT hand (a fixed, simple instruction - not
 verified by computer vision) and turns their HEAD to a FULL PROFILE on a side
 the server picked at session start.
 
@@ -22,7 +22,7 @@ via ORB features, and (c) check whether a face-swap "painted over" the card at
 the occlusion edge. Simplified away 2026-09-24: card detection scored 0 on the
 first real phone run (contour heuristic never found the card in venue light),
 and the extra machinery added failure surface without a validated benefit. The
-ID-in-hand is now a UX/demo instruction only — what is actually verified is the
+ID-in-hand is now a UX/demo instruction only - what is actually verified is the
 head turn, which is the one signal that was confirmed correct on a real phone.
 
 Verdicts: pass | review | fail | insufficient | absent. Wrong side is a hard
@@ -30,7 +30,7 @@ fail. No turn at all is `insufficient` (ask again), not fail, so a shy or
 confused user is stepped up rather than blocked.
 
 Frames are RAW (unmirrored) front-camera pixels. The user's LEFT is the
-camera's RIGHT, so turning left moves the nose to +x in the image — confirmed
+camera's RIGHT, so turning left moves the nose to +x in the image - confirmed
 on a real phone 2026-09-24 (asked RIGHT, peak_ok landed on the right).
 """
 from __future__ import annotations

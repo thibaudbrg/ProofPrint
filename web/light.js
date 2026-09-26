@@ -1,14 +1,14 @@
-// Proofprint — check 5 (light pulse), phone-side capture. Shared by index.html and /lab/light/phone.
+// Proofprint - check 5 (light pulse), phone-side capture. Shared by the app.
 //
 // Paints a server-minted colour sequence over the whole screen while the front camera keeps
 // recording. Two loops, both on the performance.now() clock:
-//   painter  — requestAnimationFrame. Switches colour on the first frame at/after its planned
+//   painter - requestAnimationFrame. Switches colour on the first frame at/after its planned
 //              time and logs t_raf (the callback that set it) + t_painted (the NEXT callback:
 //              the best web-visible "it is on the glass now"). Scheduled from the plan, so
 //              jitter never accumulates.
-//   grabber  — requestVideoFrameCallback: one grab per CAMERA frame (min gap 30 ms), 320 px,
+//   grabber - requestVideoFrameCallback: one grab per CAMERA frame (min gap 30 ms), 320 px,
 //              JPEG q 0.9 (chroma quantisation at q 0.72 eats the few-DN signal). Falls back
-//              to a 40 ms setTimeout loop on old browsers. Nothing is dropped client-side —
+//              to a 40 ms setTimeout loop on old browsers. Nothing is dropped client-side -
 //              frames across a switch carry the timing evidence.
 // The server judges against ITS copy of the sequence; the echoed names are for diagnostics.
 window.LightPulse = (() => {
@@ -108,7 +108,7 @@ window.LightPulse = (() => {
       min_frames_per_seg = Math.min(min_frames_per_seg, n);
     });
     // `ok` = the run is usable at all (every colour was shown, in order, tab visible, ≥ 2 frames per
-    // slot). Timing precision is the SERVER's call (it fits the lag and flags jitter) — a slow phone
+    // slot). Timing precision is the SERVER's call (it fits the lag and flags jitter) - a slow phone
     // must not be sent round the loop again for it.
     const ok = all_painted && order_ok && !L.hidden && min_frames_per_seg >= 2;
     return { all_painted, order_ok, hidden: L.hidden, max_switch_err_ms: +max_switch_err_ms.toFixed(1),

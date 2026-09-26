@@ -266,7 +266,7 @@ def test_light_absent_on_old_clients_does_not_step_up(monkeypatch):
 
 def test_motion_skipped_in_vehicle_steps_up_with_reason(monkeypatch):
     # "I'm in a car/train" skip on the phone-move instruction page: no burst is sent, the
-    # check stays enabled, the result is step_up with a readable reason — never a block.
+    # check stays enabled, the result is step_up with a readable reason - never a block.
     monkeypatch.setattr(main.face_match, "match", lambda a, b: {"ok": True, "score": 0.7, "verdict": "match"})
     monkeypatch.setattr(main, "NAIVE", False)
     res = _switch_post(TestClient(main.app), {

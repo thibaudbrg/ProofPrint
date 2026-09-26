@@ -1,4 +1,4 @@
-"""Proofprint — walking skeleton (Step 0 + Step 1).
+"""Proofprint - walking skeleton (Step 0 + Step 1).
 
 One thread that runs end to end:
   phone films ID + selfie -> uploads -> server face-matches -> returns a decision.
@@ -25,10 +25,8 @@ import audit_log
 import face_match
 import id_check
 import integrity_check
-import lab
 import light_check
 import motion_check
-import neck_check
 import profile_check
 
 app = FastAPI(title="Proofprint")
@@ -37,15 +35,12 @@ app = FastAPI(title="Proofprint")
 @app.middleware("http")
 async def no_store(request, call_next):
     """Never cache anything: the phone loads the page through a Cloudflare quick tunnel, which
-    caches .js/.css at the edge by default, and Safari keeps stale pages — both bit us during
+    caches .js/.css at the edge by default, and Safari keeps stale pages - both bit us during
     the hackathon (old light.js kept running the colours twice). Tiny files, no cost."""
     resp = await call_next(request)
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     resp.headers["Pragma"] = "no-cache"
     return resp
-
-
-app.include_router(lab.router)        # /lab — check-4 + check-5 debugging dashboards, isolated from the flow
 
 # In-memory session store. Fine for a hackathon; swap for SQLite later.
 SESSIONS: dict[str, dict] = {}
@@ -106,12 +101,6 @@ def _light_signal(sid: str, meta_obj: dict, lframes: list, enabled: bool) -> dic
     total_s = sum(stored["challenge"]["dur_ms"]) / 1000
     expired = time.time() - stored["minted"] > total_s + light_check.CHALLENGE_TTL_S
     sig = light_check.check(lframes, light_check.colour_log_from_meta(lm), stored["challenge"])
-    # Experimental, report-only (never fused): do the neck, ears and hairline take the
-    # flash the same way the cheeks do? Kept only if it separates our own runs.
-    try:
-        sig["neck"] = neck_check.check(lframes, light_check.colour_log_from_meta(lm), stored["challenge"])
-    except Exception as exc:
-        sig["neck"] = {"verdict": "error", "fused": False, "error": str(exc)}
     sig["enabled"] = True
     sig["attempt"] = lm.get("attempt")
     sig["client_checks"] = lm.get("client_checks")
@@ -166,7 +155,7 @@ def _decide(naive, face, idsig, integ, motion, motion_on, light, light_on, profi
                     + f" (motion {mv}" + (f", score {motion.get('score')}" if mv != "skipped" else "") + ")")
     if light_on and lv in ("review", "insufficient", "absent", "skipped"):
         soft.append({"review": "Skin answered the right colours but late / expired challenge",
-                     "insufficient": "Flat light response — too bright, or the video ignores the screen",
+                     "insufficient": "Flat light response - too bright, or the video ignores the screen",
                      "absent": "No light capture was received", "skipped": "User skipped the light check (photosensitivity)"}[lv]
                     + f" (light {lv}" + (f", score {light.get('score')}" if light.get("score") is not None else "") + ")")
     if prof_on and pv in ("review", "insufficient", "absent"):
@@ -197,15 +186,15 @@ async def capture(sid: str,
     back_img = face_match.imdecode(await id_back.read()) if id_back is not None else None
 
     timings: dict[str, float] = {}
-    # Check 2 — document: straighten, extract the portrait, read the MRZ (optional back)
+    # Check 2 - document: straighten, extract the portrait, read the MRZ (optional back)
     t0 = time.perf_counter()
     idsig, portrait = id_check.check(id_img, back_img)
     timings["id"] = time.perf_counter() - t0
-    # Check 1 — identity: match the selfie against the document PORTRAIT (falls back to the card)
+    # Check 1 - identity: match the selfie against the document PORTRAIT (falls back to the card)
     t0 = time.perf_counter()
     face = face_match.match(portrait if portrait is not None else id_img, self_img)
     timings["face"] = time.perf_counter() - t0
-    # Check 3 — capture integrity
+    # Check 3 - capture integrity
     try:
         meta_obj = json.loads(meta) if meta else {}
     except json.JSONDecodeError:
@@ -219,7 +208,7 @@ async def capture(sid: str,
     naive = NAIVE or meta_obj.get("mode") == "naive"
     motion_enabled = bool(checks.get("motion", True))
 
-    # Check 4 — gyroscope <-> video. Frame timestamps come from meta.frames
+    # Check 4 - gyroscope <-> video. Frame timestamps come from meta.frames
     # (matched by filename); the JPEGs come as repeated `frames` parts.
     t_by_name = {f.get("file"): f.get("t") for f in (meta_obj.get("frames") or [])}
     burst = []
@@ -239,7 +228,7 @@ async def capture(sid: str,
         motion = {"ok": False, "verdict": "skipped", "enabled": True, "score": 0.0,
                   "reason": "user_in_vehicle", "flags": []}
 
-    # Check 6 — ID next to face + profile turn (the killer feature). Only when
+    # Check 6 - ID next to face + profile turn (the killer feature). Only when
     # the client enabled it; the expected side comes from the session, not meta.
     prof_meta = meta_obj.get("profile") or {}
     prof_enabled = bool(prof_meta.get("enabled"))
@@ -255,7 +244,7 @@ async def capture(sid: str,
     if prof_enabled:
         timings["profile"] = time.perf_counter() - t0
 
-    # Check 5 — light pulse: skin must reflect the colours the screen showed. Frames
+    # Check 5 - light pulse: skin must reflect the colours the screen showed. Frames
     # come as `light_frames` parts matched to meta.light.frames[].file (grab time `t`;
     # the fitted lag absorbs the constant pipeline delay). Enabled when the intro
     # switch says so (older clients: only if they sent meta.light at all).
