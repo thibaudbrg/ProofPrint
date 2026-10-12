@@ -20,3 +20,7 @@ The phone captures; every decision is made server-side. An analyst view of the c
 ## The challenge
 
 Built for Swisscom's *Fighting Identity Fraud in the Age of AI* challenge - full brief in [CHALLENGE.md](CHALLENGE.md).
+
+## License
+
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/): you may share and adapt this work for any purpose, as long as you give appropriate credit. Full text in [LICENSE](LICENSE).
